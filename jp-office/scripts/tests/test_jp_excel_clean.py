@@ -73,3 +73,39 @@ def test_clean_undecodable_fallback(tmp_path):
     f.write_bytes(b"col\n\x81\x39\xfe\xff abc\n")
     report = jp_excel.clean_file(f)
     assert Path(report.dst).exists()
+
+
+def _write_xlsx(path, sheets: dict):
+    from openpyxl import Workbook
+    wb = Workbook()
+    first = True
+    for name, rows in sheets.items():
+        ws = wb.active if first else wb.create_sheet()
+        if first:
+            ws.title = name
+            first = False
+        else:
+            ws.title = name
+        for r in rows:
+            ws.append(r)
+    wb.save(path)
+
+def test_detect_xlsx_is_honest(tmp_path):
+    p = tmp_path / "book.xlsx"
+    _write_xlsx(p, {"Sheet1": [["a", "b"], ["1", "2"]]})
+    enc, evidence = jp_excel.detect_encoding(p)
+    assert enc == "xlsx"
+    assert "デコード失敗" not in evidence
+
+def test_clean_xlsx_multisheet_warns(tmp_path):
+    p = tmp_path / "multi.xlsx"
+    _write_xlsx(p, {"Yosan": [["col"], ["1"]], "Jisseki": [["col"], ["2"]]})
+    report = jp_excel.clean_file(p)
+    md = report.to_markdown()
+    assert "複数シート" in md and "Yosan" in md
+
+def test_clean_xlsx_singlesheet_no_warn(tmp_path):
+    p = tmp_path / "single.xlsx"
+    _write_xlsx(p, {"Only": [["col"], ["1"]]})
+    md = jp_excel.clean_file(p).to_markdown()
+    assert "複数シート" not in md

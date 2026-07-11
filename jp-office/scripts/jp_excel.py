@@ -17,6 +17,8 @@ class RowGuardError(Exception):
 
 
 def detect_encoding(path) -> tuple[str, str]:
+    if Path(path).suffix.lower() in (".xlsx", ".xlsm"):
+        return "xlsx", "xlsx はバイナリ形式のため文字コード判定は不要(先頭シートを読み込みます)"
     raw = Path(path).read_bytes()
     if raw.startswith(b"\xef\xbb\xbf"):
         return "utf-8-sig", "UTF-8 BOM を検出"
@@ -65,18 +67,31 @@ def _count_lines(path, limit):
     return n
 
 
-def _read(path: Path) -> tuple[pd.DataFrame, str]:
+def _xlsx_sheet_names(path) -> list[str]:
+    return pd.ExcelFile(path).sheet_names
+
+
+def _read(path: Path) -> tuple[pd.DataFrame, str, str]:
     if path.suffix.lower() in (".xlsx", ".xlsm"):
-        return pd.read_excel(path, dtype=str), "(xlsx)"
+        enc, _ = detect_encoding(path)
+        names = _xlsx_sheet_names(path)
+        df = pd.read_excel(path, sheet_name=names[0], dtype=str)
+        note = ""
+        if len(names) > 1:
+            note = (
+                f"⚠️ '{path.name}' には複数シート(合計{len(names)}枚)があります。"
+                f"先頭シート「{names[0]}」のみを処理しました。"
+            )
+        return df, enc, note
     enc, _ = detect_encoding(path)
-    return pd.read_csv(path, dtype=str, encoding=enc, encoding_errors="replace"), enc
+    return pd.read_csv(path, dtype=str, encoding=enc, encoding_errors="replace"), enc, ""
 
 
 def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig") -> CleanReport:
     src = Path(src)
     if src.suffix.lower() not in (".xlsx", ".xlsm") and _count_lines(src, ROW_GUARD + 1) - 1 > ROW_GUARD:
         raise RowGuardError(f"行数がガード{ROW_GUARD}行を超えています。ファイルを分割してから再実行してください。")
-    df, enc_in = _read(src)
+    df, enc_in, note = _read(src)
     if len(df) > ROW_GUARD:
         raise RowGuardError(f"{len(df)}行 > ガード{ROW_GUARD}行。ファイルを分割してから再実行してください。")
     dst = Path(dst) if dst else src.with_name(f"{src.stem}_cleaned.csv")
@@ -84,6 +99,8 @@ def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig") -> CleanReport
         raise ValueError("出力先が入力と同一です(原本は変更しない方針)。--out で別名を指定してください。")
     rep = CleanReport(str(src), str(dst), enc_in, encoding_out,
                       n_rows=len(df), n_cols=len(df.columns))
+    if note:
+        rep.notes.append(note)
 
     def _clean_cell(v):
         if not isinstance(v, str):
@@ -115,10 +132,12 @@ class DiffReport:
     removed_rows: list = field(default_factory=list)
     added_cols: list = field(default_factory=list)
     removed_cols: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)
     LIMIT: int = 200
 
     def to_markdown(self) -> str:
         lines = ["## 差分レポート"]
+        lines += [f"- {w}" for w in self.warnings]
         lines.append(f"- 変更セル: {len(self.changed)}件 / 追加行: {len(self.added_rows)}件"
                      f" / 削除行: {len(self.removed_rows)}件")
         if self.added_cols:
@@ -143,10 +162,11 @@ def _fill(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def diff_files(a, b, *, key: str | None = None) -> DiffReport:
-    da, _ = _read(Path(a))
-    db, _ = _read(Path(b))
+    da, _, note_a = _read(Path(a))
+    db, _, note_b = _read(Path(b))
     da, db = _fill(da), _fill(db)
     rep = DiffReport()
+    rep.warnings = [n for n in (note_a, note_b) if n]
     rep.added_cols = [c for c in db.columns if c not in da.columns]
     rep.removed_cols = [c for c in da.columns if c not in db.columns]
     common_cols = [c for c in da.columns if c in db.columns]
@@ -183,7 +203,7 @@ def diff_files(a, b, *, key: str | None = None) -> DiffReport:
             for c in common_cols:
                 old, new = str(da.at[i, c]), str(db.at[i, c])
                 if old != new:
-                    rep.changed.append((f"行{i + 2}", c, old, new))  # 헤더=1행 기준 표기
+                    rep.changed.append((f"行{i + 2}", c, old, new))  # ヘッダーを1行目として行番号を表記
         rep.added_rows = [f"行{i + 2}" for i in range(n, len(db))]
         rep.removed_rows = [f"行{i + 2}" for i in range(n, len(da))]
     return rep
