@@ -40,8 +40,17 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" diff 名簿_旧_cleaned.csv �
 ```
 
 ```python
-# diff の「変更セル」表は 行/列/旧/新 の4列のマークダウン表として出力される。
-# 件数が多い場合は上位200件のみ表示され、超過分は件数のみ表示される点に注意する。
+import pandas as pd
+
+old = pd.read_csv("meibo_old_cleaned.csv", dtype=str, encoding="utf-8-sig")
+new = pd.read_csv("meibo_new_cleaned.csv", dtype=str, encoding="utf-8-sig")
+
+# 社員番号をキーに突合(追加・削除・変更を把握)
+merged = old.merge(new, on="社員番号", how="outer",
+                   suffixes=("_旧", "_新"), indicator=True)
+added = merged[merged["_merge"] == "right_only"]    # 新規
+removed = merged[merged["_merge"] == "left_only"]   # 削除
+common = merged[merged["_merge"] == "both"]         # 変更の有無を各列で比較
 ```
 
 ## 3. クロス集計
@@ -107,7 +116,7 @@ plt.savefig("月次推移.png")
 
 **手順**
 
-1. 行数ガード(本ツールでは50万行)を超えるファイルは `clean`/`diff` がエラーで分割処理を促すため、そのまま一括では処理しない。
+1. 行数ガード(本ツールでは50万行)を超えるファイルは `clean` が `RowGuardError` で停止し分割を促すため、そのまま一括では処理しない。
 2. `pd.read_csv(chunksize=...)` でチャンク単位に読み込み、チャンクごとにクレンジング・集計を行ってから結果を結合する。
 3. 集計は「チャンクごとの部分集計」→「全チャンクの合算」の2段階で行う(単純な `sum` の合算で足りない集計は要注意)。
 
