@@ -31,3 +31,22 @@ def test_no_text_error(tmp_path):
     pdf.output(str(p))
     with pytest.raises(jp_pdf.NoTextError):
         jp_pdf.extract_text(p)
+
+def test_extract_page_zero_rejected(sample_pdf):
+    with pytest.raises(jp_pdf.PageRangeError):
+        jp_pdf.extract_text(sample_pdf, pages="0")
+
+def test_extract_page_out_of_range_rejected(sample_pdf):
+    with pytest.raises(jp_pdf.PageRangeError):
+        jp_pdf.extract_text(sample_pdf, pages="99")
+
+def test_blank_page_in_textful_doc_not_scan_error(tmp_path):
+    from fpdf import FPDF
+    pdf = FPDF()
+    pdf.add_page(); pdf.set_font("helvetica", size=24); pdf.cell(text="PAGE ONE")
+    pdf.add_page()  # blank page 2
+    p = tmp_path / "mixed.pdf"
+    pdf.output(str(p))
+    # selecting the blank page 2 must NOT raise NoTextError (doc has text on p.1)
+    result = jp_pdf.extract_text(p, pages="2")
+    assert result == ""  # no text on p.2, but not a scan-PDF misdiagnosis
