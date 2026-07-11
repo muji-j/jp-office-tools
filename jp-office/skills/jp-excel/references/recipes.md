@@ -42,8 +42,8 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" diff 名簿_旧_cleaned.csv �
 ```python
 import pandas as pd
 
-old = pd.read_csv("meibo_old_cleaned.csv", dtype=str, encoding="utf-8-sig")
-new = pd.read_csv("meibo_new_cleaned.csv", dtype=str, encoding="utf-8-sig")
+old = pd.read_csv("名簿_旧_cleaned.csv", dtype=str, encoding="utf-8-sig")
+new = pd.read_csv("名簿_新_cleaned.csv", dtype=str, encoding="utf-8-sig")
 
 # 社員番号をキーに突合(追加・削除・変更を把握)
 merged = old.merge(new, on="社員番号", how="outer",
