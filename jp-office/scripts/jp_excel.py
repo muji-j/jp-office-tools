@@ -151,6 +151,19 @@ def diff_files(a, b, *, key: str | None = None) -> DiffReport:
     rep.removed_cols = [c for c in da.columns if c not in db.columns]
     common_cols = [c for c in da.columns if c in db.columns]
     if key:
+        for label, df_ in (("A", da), ("B", db)):
+            if key not in df_.columns:
+                raise ValueError(f"--key 列 '{key}' がファイル{label}に存在しません。")
+            col = df_[key]
+            if (col == "").any():
+                raise ValueError(
+                    f"--key 列 '{key}' に空の値があります(ファイル{label})。"
+                    "位置基準の比較を使うか、データを修正してください。")
+            dup = col[col.duplicated()].unique()
+            if len(dup):
+                raise ValueError(
+                    f"--key 列 '{key}' に重複があります(ファイル{label}): "
+                    f"{', '.join(map(str, dup[:5]))} — 位置基準の比較を使うか、重複を解消してください。")
         ia = da.set_index(key, drop=False)
         ib = db.set_index(key, drop=False)
         rep.added_rows = [k for k in ib.index if k not in ia.index]

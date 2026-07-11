@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 import jp_excel
 
 
@@ -28,3 +30,19 @@ def test_diff_positional(tmp_path):
 def test_diff_markdown(tmp_path):
     md = jp_excel.diff_files(*_pair(tmp_path), key="ID").to_markdown()
     assert "150" in md and "田中" not in md.split("追加列")[0]  # 변경표에 추가행 내용이 섞이지 않음
+
+def test_diff_key_duplicates_rejected(tmp_path):
+    a = tmp_path / "a.csv"
+    b = tmp_path / "b.csv"
+    a.write_text("ID,v\n1,a\n1,b\n", encoding="utf-8")
+    b.write_text("ID,v\n1,a\n2,b\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="重複"):
+        jp_excel.diff_files(a, b, key="ID")
+
+def test_diff_key_blank_rejected(tmp_path):
+    a = tmp_path / "a.csv"
+    b = tmp_path / "b.csv"
+    a.write_text("ID,v\n1,a\n,b\n", encoding="utf-8")
+    b.write_text("ID,v\n1,a\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="空"):
+        jp_excel.diff_files(a, b, key="ID")
