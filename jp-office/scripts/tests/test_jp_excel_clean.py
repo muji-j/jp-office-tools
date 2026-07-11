@@ -60,3 +60,16 @@ def test_report_markdown(tmp_path):
     f = _write_cp932(tmp_path)
     md = jp_excel.clean_file(f).to_markdown()
     assert "cp932" in md and "utf-8-sig" in md
+
+def test_clean_wareki_substring_preserved(tmp_path):
+    f = tmp_path / "memo.csv"
+    f.write_text("備考\n納期: R6.5.10 予定\n", encoding="utf-8")
+    report = jp_excel.clean_file(f)
+    df = pd.read_csv(report.dst, dtype=str)
+    assert df.loc[0, "備考"] == "納期: R6.5.10 予定"
+
+def test_clean_undecodable_fallback(tmp_path):
+    f = tmp_path / "broken.csv"
+    f.write_bytes(b"col\n\x81\x39\xfe\xff abc\n")
+    report = jp_excel.clean_file(f)
+    assert Path(report.dst).exists()

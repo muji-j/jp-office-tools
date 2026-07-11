@@ -55,15 +55,27 @@ class CleanReport:
         return "\n".join(lines)
 
 
+def _count_lines(path, limit):
+    n = 0
+    with open(path, "rb") as fh:
+        for _ in fh:
+            n += 1
+            if n > limit:
+                break
+    return n
+
+
 def _read(path: Path) -> tuple[pd.DataFrame, str]:
     if path.suffix.lower() in (".xlsx", ".xlsm"):
         return pd.read_excel(path, dtype=str), "(xlsx)"
     enc, _ = detect_encoding(path)
-    return pd.read_csv(path, dtype=str, encoding=enc), enc
+    return pd.read_csv(path, dtype=str, encoding=enc, encoding_errors="replace"), enc
 
 
 def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig") -> CleanReport:
     src = Path(src)
+    if src.suffix.lower() not in (".xlsx", ".xlsm") and _count_lines(src, ROW_GUARD + 1) - 1 > ROW_GUARD:
+        raise RowGuardError(f"行数がガード{ROW_GUARD}行を超えています。ファイルを分割してから再実行してください。")
     df, enc_in = _read(src)
     if len(df) > ROW_GUARD:
         raise RowGuardError(f"{len(df)}行 > ガード{ROW_GUARD}行。ファイルを分割してから再実行してください。")
@@ -85,7 +97,7 @@ def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig") -> CleanReport
         if nfkc != out:
             rep.cells_nfkc += 1
             out = nfkc
-        iso = wareki_to_iso(out)
+        iso = wareki_to_iso(out, full=True)
         if iso and iso != out:
             rep.cells_wareki += 1
             out = iso

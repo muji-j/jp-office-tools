@@ -46,3 +46,8 @@ def test_iso_to_wareki():
 def test_fiscal_year_boundary():
     assert jp_dates.fiscal_year(date(2026, 3, 31)) == 2025
     assert jp_dates.fiscal_year(date(2026, 4, 1)) == 2026
+
+def test_wareki_full_kwarg():
+    assert jp_dates.wareki_to_iso("R6.4.1", full=True) == "2024-04-01"
+    assert jp_dates.wareki_to_iso("納期: R6.4.1", full=True) is None
+    assert jp_dates.wareki_to_iso("納期: R6.4.1") == "2024-04-01"

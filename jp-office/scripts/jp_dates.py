@@ -41,13 +41,14 @@ def add_business_days(d: date, n: int, *, exclude_yearend: bool = False) -> date
     return cur
 
 
-def wareki_to_iso(s: str) -> str | None:
-    m = _FULL.search(s)
+def wareki_to_iso(s: str, *, full: bool = False) -> str | None:
+    matcher = "fullmatch" if full else "search"
+    m = getattr(_FULL, matcher)(s.strip() if full else s)
     if m:
         era, y, mo, dy = m.group(1), m.group(2), int(m.group(3)), int(m.group(4))
         year = ERA_STARTS[era] + (1 if y == "元" else int(y)) - 1
     else:
-        m = _ABBR.search(s)
+        m = getattr(_ABBR, matcher)(s.strip() if full else s)
         if not m:
             return None
         era = ERA_ABBREV[m.group(1).upper()]
