@@ -108,6 +108,74 @@ def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig") -> CleanReport
     return rep
 
 
+@dataclass
+class DiffReport:
+    changed: list = field(default_factory=list)      # (row_label, col, old, new)
+    added_rows: list = field(default_factory=list)
+    removed_rows: list = field(default_factory=list)
+    added_cols: list = field(default_factory=list)
+    removed_cols: list = field(default_factory=list)
+    LIMIT: int = 200
+
+    def to_markdown(self) -> str:
+        lines = ["## 差分レポート"]
+        lines.append(f"- 変更セル: {len(self.changed)}件 / 追加行: {len(self.added_rows)}件"
+                     f" / 削除行: {len(self.removed_rows)}件")
+        if self.added_cols:
+            lines.append(f"- 追加列: {', '.join(self.added_cols)}")
+        if self.removed_cols:
+            lines.append(f"- 削除列: {', '.join(self.removed_cols)}")
+        if self.changed:
+            lines += ["", "| 行 | 列 | 旧 | 新 |", "|---|---|---|---|"]
+            lines += [f"| {r} | {c} | {o} | {n} |" for r, c, o, n in self.changed[: self.LIMIT]]
+            if len(self.changed) > self.LIMIT:
+                lines.append(f"| … | | | ほか {len(self.changed) - self.LIMIT}件 |")
+        for title, rows in (("追加行", self.added_rows), ("削除行", self.removed_rows)):
+            if rows:
+                shown = ", ".join(map(str, rows[: self.LIMIT]))
+                extra = f" …ほか{len(rows) - self.LIMIT}件" if len(rows) > self.LIMIT else ""
+                lines.append(f"- {title}: {shown}{extra}")
+        return "\n".join(lines)
+
+
+def _fill(df: pd.DataFrame) -> pd.DataFrame:
+    return df.fillna("")
+
+
+def diff_files(a, b, *, key: str | None = None) -> DiffReport:
+    da, _ = _read(Path(a))
+    db, _ = _read(Path(b))
+    da, db = _fill(da), _fill(db)
+    rep = DiffReport()
+    rep.added_cols = [c for c in db.columns if c not in da.columns]
+    rep.removed_cols = [c for c in da.columns if c not in db.columns]
+    common_cols = [c for c in da.columns if c in db.columns]
+    if key:
+        ia = da.set_index(key, drop=False)
+        ib = db.set_index(key, drop=False)
+        rep.added_rows = [k for k in ib.index if k not in ia.index]
+        rep.removed_rows = [k for k in ia.index if k not in ib.index]
+        for k in ia.index:
+            if k not in ib.index:
+                continue
+            for c in common_cols:
+                if c == key:
+                    continue
+                old, new = str(ia.at[k, c]), str(ib.at[k, c])
+                if old != new:
+                    rep.changed.append((str(k), c, old, new))
+    else:
+        n = min(len(da), len(db))
+        for i in range(n):
+            for c in common_cols:
+                old, new = str(da.at[i, c]), str(db.at[i, c])
+                if old != new:
+                    rep.changed.append((f"行{i + 2}", c, old, new))  # 헤더=1행 기준 표기
+        rep.added_rows = [f"行{i + 2}" for i in range(n, len(db))]
+        rep.removed_rows = [f"行{i + 2}" for i in range(n, len(da))]
+    return rep
+
+
 def main(argv: list[str]) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -119,12 +187,18 @@ def main(argv: list[str]) -> int:
     p_cln.add_argument("file")
     p_cln.add_argument("--out")
     p_cln.add_argument("--encoding-out", default="utf-8-sig", choices=["utf-8-sig", "cp932"])
+    p_dif = sub.add_parser("diff")
+    p_dif.add_argument("file_a")
+    p_dif.add_argument("file_b")
+    p_dif.add_argument("--key")
     args = ap.parse_args(argv[1:])
     if args.cmd == "detect":
         enc, evidence = detect_encoding(args.file)
         print(f"{enc}\t{evidence}")
     elif args.cmd == "clean":
         print(clean_file(args.file, args.out, encoding_out=args.encoding_out).to_markdown())
+    elif args.cmd == "diff":
+        print(diff_files(args.file_a, args.file_b, key=args.key).to_markdown())
     return 0
 
 
