@@ -1,0 +1,16 @@
+{
+  "name": "jp-office-tools",
+  "owner": { "name": "muji" },
+  "metadata": {
+    "description": "日本の業務環境向け 汎用オフィスツール(Excel/CSV・ビジネス文書・日付)マーケットプレイス",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "jp-office",
+      "source": "./jp-office",
+      "description": "Japanese office toolkit — Excel/CSV workbench (encoding/normalization/diff), Japanese business documents (議事録/稟議書/敬語メール/スライド構成/翻訳), date utilities (祝日/営業日/和暦). General-purpose, no company-specific content.",
+      "strict": false
+    }
+  ]
+}
