@@ -1,6 +1,6 @@
 ---
 name: jp-excel
-description: Excel/CSVファイルの取り扱い全般 — 文字化け・エンコーディング変換(Shift-JIS/CP932/UTF-8)、全角半角・和暦日付の正規化、シート/ファイル比較(diff)、集計・グラフ作成の際に使用。キーワード - 文字化け, Shift-JIS, CP932, BOM, 全角, 半角, CSV, Excel, xlsx, セル結合, 突合, 差分比較, ピボット, クロス集計。
+description: Excel/CSVファイルの取り扱い全般 — 文字化け・エンコーディング変換(Shift-JIS/CP932/UTF-8)、全角半角・和暦日付の正規化、ファイル比較(diff、xlsxは先頭シート)、集計・グラフ作成の際に使用。キーワード - 文字化け, Shift-JIS, CP932, BOM, 全角, 半角, CSV, Excel, xlsx, セル結合, 突合, 差分比較, ピボット, クロス集計。
 ---
 
 # jp-excel — Excel/CSV ワークベンチ(日本の事務環境向け)
