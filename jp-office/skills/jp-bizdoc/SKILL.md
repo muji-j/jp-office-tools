@@ -14,3 +14,4 @@ description: 日本のビジネス文書の作成・添削全般 — 議事録, 
 5. PDF は `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_pdf.py" extract <file> [--pages 1-3]` でテキスト化してから扱う。**スキャンPDF(画像)**でテキスト層が無い場合は、`jp_pdf.py render <file> [--pages]` でページを PNG 画像に描画し、その画像を**視覚(ビジョン)で直接読み取る**(既定・推奨)。オフラインで文字列が必要なら `extract --ocr`(要 tesseract、無ければ案内)。
 6. 成果物に実在の社名・個人名を例として使わない(架空名: 株式会社サンプル, 山田太郎 等)。
 7. 文章の作成・添削では [references/anti-ai.md](references/anti-ai.md) に照らし、AIっぽい定型の乱発を避ける。発信者のトーン指定・例文があればそれを最優先で反映する。
+8. 文体(敬体/常体)の統一は [references/style.md](references/style.md) に従う。文書種別の既定文体に合わせ、混用は指摘して統一する(敬語の正確さ=keigo.md とは別の観点)。
