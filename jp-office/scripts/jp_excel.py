@@ -320,6 +320,91 @@ def pivot_report(path, index, values, *, agg: str = "sum", columns=None,
                        len(table), len(table.columns))
 
 
+def _set_jp_font():
+    from matplotlib import font_manager
+    import matplotlib.pyplot as plt
+    available = {f.name for f in font_manager.fontManager.ttflist}
+    for name in ("Meiryo", "Yu Gothic", "MS Gothic", "IPAexGothic", "Noto Sans CJK JP"):
+        if name in available:
+            plt.rcParams["font.family"] = name
+            return name
+    return None
+
+
+# dataviz スキル準拠のカテゴリ配色(アクセシブルなプレースホルダ)
+_CHART_COLORS = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948"]
+
+
+def make_chart(path, kind: str, x: str, y: str, *, fmt: str = "png",
+               title: str | None = None, sheet: str | None = None, out=None) -> str:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    src = Path(path)
+    df, _, _ = _read(src, sheet=sheet)
+    ys = [c.strip() for c in y.split(",")]
+    for c in [x] + ys:
+        if c not in df.columns:
+            raise ValueError(
+                f"列 '{c}' が見つかりません。利用可能: {', '.join(map(str, df.columns))}")
+    _set_jp_font()
+    xs = list(df[x])
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    if kind == "pie":
+        vals = _to_numeric(df[ys[0]]).fillna(0)
+        ax.pie(vals, labels=xs, colors=_CHART_COLORS, autopct="%1.1f%%")
+    elif kind == "bar":
+        pos = range(len(xs))
+        width = 0.8 / max(len(ys), 1)
+        for i, yc in enumerate(ys):
+            ax.bar([p + i * width for p in pos], _to_numeric(df[yc]).fillna(0),
+                   width=width, label=yc, color=_CHART_COLORS[i % len(_CHART_COLORS)])
+        ax.set_xticks([p + width * (len(ys) - 1) / 2 for p in pos])
+        ax.set_xticklabels(xs, rotation=0)
+        if len(ys) > 1:
+            ax.legend()
+    else:  # line
+        for i, yc in enumerate(ys):
+            ax.plot(xs, _to_numeric(df[yc]).fillna(0), marker="o", label=yc,
+                    color=_CHART_COLORS[i % len(_CHART_COLORS)])
+        if len(ys) > 1:
+            ax.legend()
+    if title:
+        ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    if fmt == "html":
+        import io
+        buf = io.StringIO()
+        fig.savefig(buf, format="svg")
+        plt.close(fig)
+        svg = buf.getvalue()
+        dst = Path(out) if out else src.with_name(f"{src.stem}_chart.html")
+        html = _chart_html_wrapper(title or src.stem, svg)
+        dst.write_text(html, encoding="utf-8")
+    else:
+        dst = Path(out) if out else src.with_name(f"{src.stem}_chart.png")
+        fig.savefig(dst, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+    if dst.resolve() == src.resolve():
+        raise ValueError("出力先が入力と同一です(原本は変更しない方針)。")
+    return str(dst)
+
+
+def _chart_html_wrapper(title: str, svg: str) -> str:
+    return (
+        "<!doctype html><html lang='ja'><head><meta charset='utf-8'>"
+        f"<title>{title}</title><style>"
+        "body{margin:0;padding:24px;font-family:sans-serif;background:#fff;color:#111}"
+        "@media (prefers-color-scheme: dark){body{background:#111;color:#eee}"
+        "svg{filter:invert(0.92) hue-rotate(180deg)}}"
+        ".wrap{max-width:960px;margin:0 auto}svg{max-width:100%;height:auto}"
+        f"</style></head><body><div class='wrap'><h2>{title}</h2>{svg}</div></body></html>"
+    )
+
+
 @dataclass
 class DiffReport:
     changed: list = field(default_factory=list)      # (row_label, col, old, new)
@@ -484,6 +569,15 @@ def main(argv: list[str]) -> int:
     p_piv.add_argument("--columns")
     p_piv.add_argument("--sheet")
     p_piv.add_argument("--out")
+    p_cht = sub.add_parser("chart")
+    p_cht.add_argument("file")
+    p_cht.add_argument("--kind", required=True, choices=["line", "bar", "pie"])
+    p_cht.add_argument("--x", required=True)
+    p_cht.add_argument("--y", required=True)
+    p_cht.add_argument("--format", default="png", choices=["png", "html"])
+    p_cht.add_argument("--title")
+    p_cht.add_argument("--sheet")
+    p_cht.add_argument("--out")
     args = ap.parse_args(argv[1:])
     if args.cmd == "detect":
         enc, evidence = detect_encoding(args.file)
@@ -508,6 +602,10 @@ def main(argv: list[str]) -> int:
     elif args.cmd == "pivot":
         print(pivot_report(args.file, args.index, args.values, agg=args.agg,
                            columns=args.columns, sheet=args.sheet, out=args.out).to_markdown())
+    elif args.cmd == "chart":
+        path = make_chart(args.file, args.kind, args.x, args.y, fmt=args.format,
+                          title=args.title, sheet=args.sheet, out=args.out)
+        print(path)
     return 0
 
 
