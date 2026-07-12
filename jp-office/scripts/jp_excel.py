@@ -264,6 +264,62 @@ def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig", sheet: str | N
     return rep
 
 
+def _df_to_markdown(df: pd.DataFrame, limit: int = 200) -> str:
+    d = df.reset_index()
+    cols = ["/".join(str(x) for x in c) if isinstance(c, tuple) else str(c) for c in d.columns]
+    lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
+    for _, row in d.head(limit).iterrows():
+        lines.append("| " + " | ".join("" if pd.isna(v) else str(v) for v in row) + " |")
+    if len(d) > limit:
+        lines.append(f"| …ほか {len(d) - limit} 行 |" + " |" * (len(cols) - 1))
+    return "\n".join(lines)
+
+
+def _to_numeric(series):
+    return pd.to_numeric(
+        series.map(lambda v: unicodedata.normalize("NFKC", v).replace(",", "")
+                   if isinstance(v, str) else v),
+        errors="coerce")
+
+
+@dataclass
+class PivotReport:
+    src: str
+    dst: str
+    table_md: str
+    n_rows: int
+    n_cols: int
+
+    def to_markdown(self) -> str:
+        return (f"## ピボット集計\n- 入力: `{self.src}`\n"
+                f"- 出力: `{self.dst}` ({self.n_rows}行 × {self.n_cols}列)\n\n{self.table_md}")
+
+
+def pivot_report(path, index, values, *, agg: str = "sum", columns=None,
+                 sheet: str | None = None, out=None) -> PivotReport:
+    src = Path(path)
+    df, _, _ = _read(src, sheet=sheet)
+    _check_row_guard(df)
+    idx = [c.strip() for c in index.split(",")]
+    vals = [c.strip() for c in values.split(",")]
+    cols = [c.strip() for c in columns.split(",")] if columns else None
+    for c in idx + vals + (cols or []):
+        if c not in df.columns:
+            raise ValueError(
+                f"列 '{c}' が見つかりません。利用可能: {', '.join(map(str, df.columns))}")
+    work = df.copy()
+    for v in vals:
+        work[v] = _to_numeric(work[v])
+    table = pd.pivot_table(work, index=idx, columns=cols, values=vals,
+                           aggfunc=agg, margins=True, margins_name="合計")
+    dst = Path(out) if out else src.with_name(f"{src.stem}_pivot.csv")
+    if dst.resolve() == src.resolve():
+        raise ValueError("出力先が入力と同一です(原本は変更しない方針)。")
+    table.to_csv(dst, encoding="utf-8-sig")
+    return PivotReport(str(src), str(dst), _df_to_markdown(table),
+                       len(table), len(table.columns))
+
+
 @dataclass
 class DiffReport:
     changed: list = field(default_factory=list)      # (row_label, col, old, new)
@@ -420,6 +476,14 @@ def main(argv: list[str]) -> int:
     p_cols.add_argument("file")
     p_cols.add_argument("--sheet")
     p_cols.add_argument("--format", default="md", choices=["md", "json"])
+    p_piv = sub.add_parser("pivot")
+    p_piv.add_argument("file")
+    p_piv.add_argument("--index", required=True)
+    p_piv.add_argument("--values", required=True)
+    p_piv.add_argument("--agg", default="sum", choices=["sum", "count", "mean", "max", "min"])
+    p_piv.add_argument("--columns")
+    p_piv.add_argument("--sheet")
+    p_piv.add_argument("--out")
     args = ap.parse_args(argv[1:])
     if args.cmd == "detect":
         enc, evidence = detect_encoding(args.file)
@@ -441,6 +505,9 @@ def main(argv: list[str]) -> int:
             print(json.dumps(cols, ensure_ascii=False, indent=2))
         else:
             print(columns_to_markdown(cols))
+    elif args.cmd == "pivot":
+        print(pivot_report(args.file, args.index, args.values, agg=args.agg,
+                           columns=args.columns, sheet=args.sheet, out=args.out).to_markdown())
     return 0
 
 
