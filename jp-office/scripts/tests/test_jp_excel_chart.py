@@ -44,3 +44,11 @@ def test_chart_original_not_overwritten(tmp_path):
     before = f.read_bytes()
     jp_excel.make_chart(f, kind="line", x="月", y="売上", fmt="png")
     assert f.read_bytes() == before
+
+
+def test_chart_out_equals_src_rejected(tmp_path):
+    f = _csv(tmp_path)
+    before = f.read_bytes()
+    with pytest.raises(ValueError, match="原本|出力先"):
+        jp_excel.make_chart(f, kind="line", x="月", y="売上", fmt="png", out=str(f))
+    assert f.read_bytes() == before   # 原本不変(書き込み前に拒否)

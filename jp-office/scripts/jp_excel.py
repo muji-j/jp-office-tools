@@ -375,21 +375,20 @@ def make_chart(path, kind: str, x: str, y: str, *, fmt: str = "png",
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
 
+    dst = Path(out) if out else src.with_name(
+        f"{src.stem}_chart.{'html' if fmt == 'html' else 'png'}")
+    if dst.resolve() == src.resolve():
+        plt.close(fig)
+        raise ValueError("出力先が入力と同一です(原本は変更しない方針)。")
     if fmt == "html":
         import io
         buf = io.StringIO()
         fig.savefig(buf, format="svg")
         plt.close(fig)
-        svg = buf.getvalue()
-        dst = Path(out) if out else src.with_name(f"{src.stem}_chart.html")
-        html = _chart_html_wrapper(title or src.stem, svg)
-        dst.write_text(html, encoding="utf-8")
+        dst.write_text(_chart_html_wrapper(title or src.stem, buf.getvalue()), encoding="utf-8")
     else:
-        dst = Path(out) if out else src.with_name(f"{src.stem}_chart.png")
         fig.savefig(dst, dpi=150, bbox_inches="tight")
         plt.close(fig)
-    if dst.resolve() == src.resolve():
-        raise ValueError("出力先が入力と同一です(原本は変更しない方針)。")
     return str(dst)
 
 
