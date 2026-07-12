@@ -88,7 +88,7 @@ def parse_content(obj: dict) -> dict:
         "template": obj.get("template"),
         "accent": obj.get("accent"),
         "font": obj.get("font"),
-        "variant": obj.get("variant", "light"),
+        "variant": obj.get("variant"),
         "slides": slides,
     }
 
@@ -130,17 +130,23 @@ def _rgb(P, hexstr):
     return P["RGBColor"].from_string(hexstr)
 
 
-def _new_presentation(P, theme):
+def _new_presentation(P, theme, template=None):
+    if template:
+        if not Path(template).exists():
+            raise RuntimeError(f"テンプレートが見つかりません: {template}")
+        prs = P["Presentation"](template)
+        return prs
     prs = P["Presentation"]()
     prs.slide_width = P["Inches"](13.333)
     prs.slide_height = P["Inches"](7.5)
     return prs
 
 
-def _add_slide(P, prs, theme):
+def _add_slide(P, prs, theme, template_mode=False):
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
-    slide.background.fill.solid()
-    slide.background.fill.fore_color.rgb = _rgb(P, theme.bg)
+    if not template_mode:
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = _rgb(P, theme.bg)
     return slide
 
 
@@ -162,10 +168,11 @@ def _rect(P, slide, left, top, width, height, hexcolor):
 
 
 # ---- スライドビルダー ----
-def _slide_cover(P, prs, theme, s):
-    slide = _add_slide(P, prs, theme)
+def _slide_cover(P, prs, theme, s, template_mode=False):
+    slide = _add_slide(P, prs, theme, template_mode)
     # アーキタイプ別アクセント要素
-    _accent_decor(P, slide, theme, cover=True)
+    if not template_mode:
+        _accent_decor(P, slide, theme, cover=True)
     title = s.get("title", "")
     tb = _textbox(P, slide, 0.9, 2.7, 11.5, 2.0)
     p = tb.text_frame.paragraphs[0]
@@ -182,9 +189,10 @@ def _slide_cover(P, prs, theme, s):
     return slide
 
 
-def _slide_message(P, prs, theme, s):
-    slide = _add_slide(P, prs, theme)
-    _accent_decor(P, slide, theme, cover=False)
+def _slide_message(P, prs, theme, s, template_mode=False):
+    slide = _add_slide(P, prs, theme, template_mode)
+    if not template_mode:
+        _accent_decor(P, slide, theme, cover=False)
     tb = _textbox(P, slide, _content_left(theme), 1.5, _content_width(theme), 1.6)
     p = tb.text_frame.paragraphs[0]
     _apply_font(P, p.add_run(), theme.heading_font, 26, bold=True, color=_rgb(P, theme.text))
@@ -246,9 +254,10 @@ def _warn(msg):
     print(f"⚠ {msg}", file=sys.stderr)
 
 
-def _slide_table(P, prs, theme, s):
-    slide = _add_slide(P, prs, theme)
-    _accent_decor(P, slide, theme, cover=False)
+def _slide_table(P, prs, theme, s, template_mode=False):
+    slide = _add_slide(P, prs, theme, template_mode)
+    if not template_mode:
+        _accent_decor(P, slide, theme, cover=False)
     tb = _textbox(P, slide, _content_left(theme), 1.4, _content_width(theme), 1.0)
     p = tb.text_frame.paragraphs[0]
     _apply_font(P, p.add_run(), theme.heading_font, 24, bold=True, color=_rgb(P, theme.text))
@@ -280,9 +289,10 @@ def _slide_table(P, prs, theme, s):
     return slide
 
 
-def _slide_image(P, prs, theme, s):
-    slide = _add_slide(P, prs, theme)
-    _accent_decor(P, slide, theme, cover=False)
+def _slide_image(P, prs, theme, s, template_mode=False):
+    slide = _add_slide(P, prs, theme, template_mode)
+    if not template_mode:
+        _accent_decor(P, slide, theme, cover=False)
     tb = _textbox(P, slide, _content_left(theme), 1.4, _content_width(theme), 1.0)
     p = tb.text_frame.paragraphs[0]
     _apply_font(P, p.add_run(), theme.heading_font, 24, bold=True, color=_rgb(P, theme.text))
@@ -302,9 +312,10 @@ def _slide_image(P, prs, theme, s):
     return slide
 
 
-def _slide_section(P, prs, theme, s):
-    slide = _add_slide(P, prs, theme)
-    _accent_decor(P, slide, theme, cover=True)
+def _slide_section(P, prs, theme, s, template_mode=False):
+    slide = _add_slide(P, prs, theme, template_mode)
+    if not template_mode:
+        _accent_decor(P, slide, theme, cover=True)
     tb = _textbox(P, slide, 0.9, 3.1, 11.5, 1.4)
     p = tb.text_frame.paragraphs[0]
     _apply_font(P, p.add_run(), theme.heading_font, 30, bold=True,
@@ -319,13 +330,15 @@ _SLIDE_DISPATCH = {"table": _slide_table, "image": _slide_image, "section": _sli
 def render_deck(content: dict, *, out: str | None = None) -> str:
     P = _require_pptx()
     theme = _resolve_theme(content)
-    prs = _new_presentation(P, theme)
+    template = content.get("template")
+    tmode = bool(template)
+    prs = _new_presentation(P, theme, template=template)
     dispatch = {"cover": _slide_cover, "message": _slide_message, **_SLIDE_DISPATCH}
     for s in content["slides"]:
         fn = dispatch.get(s["type"])
         if fn is None:
             raise RuntimeError(f"このタスクでは未対応のスライド種別: {s['type']}")
-        fn(P, prs, theme, s)
+        fn(P, prs, theme, s, template_mode=tmode)
     title = content.get("meta", {}).get("title") or "slides"
     path = out or f"{title}.pptx"
     prs.save(path)
@@ -343,8 +356,11 @@ def _resolve_theme(content: dict):
         h, b = FONT_PAIRINGS[content["font"]]
         changes["heading_font"] = h
         changes["body_font"] = b
-    if content.get("variant") == "dark" and not base.dark:
-        changes["dark"] = True
+    variant = content.get("variant")
+    if variant == "dark" and not base.dark:
+        changes.update(dark=True, bg="1C1C1E", text="ECECEC", rule="3A3A3E")
+    elif variant == "light" and base.dark:
+        changes.update(dark=False, bg="FFFFFF", text="1E1E1E", rule="DDDDDD")
     return replace(base, **changes) if changes else base
 
 
