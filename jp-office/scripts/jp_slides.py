@@ -93,6 +93,167 @@ def parse_content(obj: dict) -> dict:
     }
 
 
+def _require_pptx():
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches, Pt, Emu
+        from pptx.dml.color import RGBColor
+        from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.oxml.ns import qn
+        return dict(Presentation=Presentation, Inches=Inches, Pt=Pt, Emu=Emu,
+                    RGBColor=RGBColor, PP_ALIGN=PP_ALIGN, MSO_ANCHOR=MSO_ANCHOR,
+                    MSO_SHAPE=MSO_SHAPE, qn=qn)
+    except ImportError as e:
+        raise RuntimeError(
+            "python-pptx が見つかりません。`/jp-office-setup` で導入するか "
+            "`pip install python-pptx>=1.0` を実行してください。"
+        ) from e
+
+
+def _apply_font(P, run, name, size_pt, *, bold=False, color=None):
+    run.font.size = P["Pt"](size_pt)
+    run.font.bold = bold
+    if color is not None:
+        run.font.color.rgb = color
+    run.font.name = name
+    rPr = run._r.get_or_add_rPr()
+    for tag in ("a:latin", "a:ea", "a:cs"):
+        el = rPr.find(P["qn"](tag))
+        if el is None:
+            el = rPr.makeelement(P["qn"](tag), {})
+            rPr.append(el)
+        el.set("typeface", name)
+
+
+def _rgb(P, hexstr):
+    return P["RGBColor"].from_string(hexstr)
+
+
+def _new_presentation(P, theme):
+    prs = P["Presentation"]()
+    prs.slide_width = P["Inches"](13.333)
+    prs.slide_height = P["Inches"](7.5)
+    return prs
+
+
+def _add_slide(P, prs, theme):
+    slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
+    slide.background.fill.solid()
+    slide.background.fill.fore_color.rgb = _rgb(P, theme.bg)
+    return slide
+
+
+def _textbox(P, slide, left, top, width, height):
+    tb = slide.shapes.add_textbox(P["Inches"](left), P["Inches"](top),
+                                  P["Inches"](width), P["Inches"](height))
+    tb.text_frame.word_wrap = True
+    return tb
+
+
+def _rect(P, slide, left, top, width, height, hexcolor):
+    shp = slide.shapes.add_shape(P["MSO_SHAPE"].RECTANGLE, P["Inches"](left),
+                                 P["Inches"](top), P["Inches"](width), P["Inches"](height))
+    shp.fill.solid()
+    shp.fill.fore_color.rgb = _rgb(P, hexcolor)
+    shp.line.fill.background()
+    shp.shadow.inherit = False
+    return shp
+
+
+# ---- スライドビルダー ----
+def _slide_cover(P, prs, theme, s):
+    slide = _add_slide(P, prs, theme)
+    # アーキタイプ別アクセント要素
+    _accent_decor(P, slide, theme, cover=True)
+    title = s.get("title", "")
+    tb = _textbox(P, slide, 0.9, 2.7, 11.5, 2.0)
+    p = tb.text_frame.paragraphs[0]
+    _apply_font(P, p.add_run(), theme.heading_font, 40, bold=True, color=_rgb(P, theme.accent if not theme.dark else theme.text))
+    p.runs[0].text = title
+    sub = s.get("subtitle")
+    meta_bits = [b for b in (s.get("date"), s.get("author"), s.get("submitted_to")) if b]
+    line2 = "　".join([x for x in ([sub] if sub else []) + meta_bits])
+    if line2:
+        tb2 = _textbox(P, slide, 0.9, 4.6, 11.5, 1.0)
+        p2 = tb2.text_frame.paragraphs[0]
+        _apply_font(P, p2.add_run(), theme.body_font, 16, color=_rgb(P, theme.text))
+        p2.runs[0].text = line2
+    return slide
+
+
+def _slide_message(P, prs, theme, s):
+    slide = _add_slide(P, prs, theme)
+    _accent_decor(P, slide, theme, cover=False)
+    tb = _textbox(P, slide, _content_left(theme), 1.5, _content_width(theme), 1.6)
+    p = tb.text_frame.paragraphs[0]
+    _apply_font(P, p.add_run(), theme.heading_font, 26, bold=True, color=_rgb(P, theme.text))
+    p.runs[0].text = s.get("headline", "")
+    body = s.get("body", []) or []
+    if body:
+        tb2 = _textbox(P, slide, _content_left(theme), 3.2, _content_width(theme), 3.4)
+        tf = tb2.text_frame
+        for i, item in enumerate(body):
+            para = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+            para.space_after = P["Pt"](10)
+            _apply_font(P, para.add_run(), theme.body_font, 18, color=_rgb(P, theme.text))
+            para.runs[0].text = "・" + str(item)
+    return slide
+
+
+# ---- アーキタイプ配置(このタスク: minimal-centered, accent-bar) ----
+def _content_left(theme):
+    return 1.8 if theme.archetype == "sidebar" else 0.9
+
+
+def _content_width(theme):
+    return 10.6 if theme.archetype == "sidebar" else 11.5
+
+
+def _accent_decor(P, slide, theme, *, cover):
+    a = theme.archetype
+    if a == "accent-bar":
+        _rect(P, slide, 0.9, 1.2, 3.2, 0.13, theme.accent)  # 上部左側の短いバー
+    elif a == "minimal-centered":
+        _rect(P, slide, 0.9, 1.25, 11.5, 0.02, theme.rule)  # 細いルール
+    # header-band / sidebar / color-block は Task 3 で追加
+
+
+_SLIDE_DISPATCH = {}  # Task 3/4 で table/image/section を追加
+
+
+def render_deck(content: dict, *, out: str | None = None) -> str:
+    P = _require_pptx()
+    theme = _resolve_theme(content)
+    prs = _new_presentation(P, theme)
+    dispatch = {"cover": _slide_cover, "message": _slide_message, **_SLIDE_DISPATCH}
+    for s in content["slides"]:
+        fn = dispatch.get(s["type"])
+        if fn is None:
+            raise RuntimeError(f"このタスクでは未対応のスライド種別: {s['type']}")
+        fn(P, prs, theme, s)
+    title = content.get("meta", {}).get("title") or "slides"
+    path = out or f"{title}.pptx"
+    prs.save(path)
+    return path
+
+
+def _resolve_theme(content: dict):
+    """テーマ + オーバーライド(accent/font/variant)を適用した Theme を返す。"""
+    base = THEMES[content["theme"]]
+    from dataclasses import replace
+    changes = {}
+    if content.get("accent"):
+        changes["accent"] = str(content["accent"]).lstrip("#")
+    if content.get("font") and content["font"] in FONT_PAIRINGS:
+        h, b = FONT_PAIRINGS[content["font"]]
+        changes["heading_font"] = h
+        changes["body_font"] = b
+    if content.get("variant") == "dark" and not base.dark:
+        changes["dark"] = True
+    return replace(base, **changes) if changes else base
+
+
 def _build_argparser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="jp-office スライド生成")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -123,7 +284,16 @@ def main(argv: list[str]) -> int:
     if args.cmd == "themes":
         print("\n".join(list_themes()))
         return 0
-    # build/gallery/overview は後続タスクで実装
+    if args.cmd == "build":
+        obj = json.loads(Path(args.content).read_text(encoding="utf-8"))
+        for k in ("pattern", "theme", "template", "accent", "font", "variant"):
+            v = getattr(args, k, None)
+            if v is not None:
+                obj[k] = v
+        content = parse_content(obj)
+        print(render_deck(content, out=args.out))
+        return 0
+    # gallery/overview は後続タスクで実装
     raise NotImplementedError(f"未実装のサブコマンド: {args.cmd}")
 
 
