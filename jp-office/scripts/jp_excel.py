@@ -600,9 +600,9 @@ def _diff_xlsx_all_sheets(a: Path, b: Path, key: str | None) -> DiffReport:
         db = _fill(pd.read_excel(b, sheet_name=name, dtype=str))
         try:
             sub = _compare_dfs(da, db, key)
+            rep.sheet_diffs.append((name, sub))
         except ValueError as e:
-            raise ValueError(f"シート「{name}」: {e}") from e
-        rep.sheet_diffs.append((name, sub))
+            rep.warnings.append(f"シート「{name}」はスキップしました: {e}")
     return rep
 
 

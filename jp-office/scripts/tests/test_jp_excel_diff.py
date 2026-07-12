@@ -88,6 +88,18 @@ def test_diff_multisheet_with_key(tmp_path):
     assert sub.added_rows == ["3"] and sub.removed_rows == ["2"]
 
 
+def test_diff_sheet_isolation(tmp_path):
+    a = tmp_path / "a.xlsx"
+    b = tmp_path / "b.xlsx"
+    # Sheet1: ID 키 정상 / Notes: ID 열 없음(키 불가)
+    _write_xlsx(a, {"Sheet1": [["ID", "値"], ["1", "a"]], "Notes": [["メモ"], ["x"]]})
+    _write_xlsx(b, {"Sheet1": [["ID", "値"], ["1", "b"]], "Notes": [["メモ"], ["y"]]})
+    rep = jp_excel.diff_files(a, b, key="ID")
+    md = rep.to_markdown()
+    assert "スキップ" in md and "Notes" in md          # 問題シートはスキップ
+    assert any(name == "Sheet1" for name, _ in rep.sheet_diffs)  # 正常シートは比較される
+
+
 def test_diff_single_sheet_specified(tmp_path):
     a = tmp_path / "a.xlsx"
     b = tmp_path / "b.xlsx"
