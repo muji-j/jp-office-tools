@@ -232,8 +232,54 @@ def _clean_xlsx_all_sheets(src: Path, dst, encoding_out: str, names: list[str]) 
     return rep
 
 
-def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig", sheet: str | None = None) -> CleanReport:
+def _clean_to_xlsx(src: Path, dst, sheet: str | None) -> CleanReport:
     src = Path(src)
+    is_xlsx = src.suffix.lower() in (".xlsx", ".xlsm")
+    enc_in, _ = detect_encoding(src)
+    dst = Path(dst) if dst else src.with_name(f"{src.stem}_cleaned.xlsx")
+    if dst.resolve() == src.resolve():
+        raise ValueError("出力先が入力と同一です(原本は変更しない方針)。")
+    if is_xlsx and sheet is None:
+        names = _xlsx_sheet_names(src)
+    elif is_xlsx:
+        names = [sheet]
+    else:
+        names = [None]
+    totals = {"nfkc": 0, "wareki": 0, "stripped": 0}
+    sheet_outputs = []
+    first_rows = first_cols = 0
+    used_labels = set()
+    with pd.ExcelWriter(dst, engine="openpyxl") as writer:
+        for name in names:
+            df, _, _ = _read(src, sheet=name)
+            _check_row_guard(df, sheet_label=name or "")
+            cleaned, counts = _clean_dataframe(df)
+            for k in totals:
+                totals[k] += counts[k]
+            label = _safe_sheet_name(name)[:31] if name else "Sheet1"
+            base = label
+            i = 2
+            while label in used_labels:
+                label = f"{base[:28]}_{i}"
+                i += 1
+            used_labels.add(label)
+            cleaned.to_excel(writer, sheet_name=label, index=False)
+            sheet_outputs.append((name or "(CSV)", str(dst), len(df), len(df.columns)))
+            if not first_cols:
+                first_rows, first_cols = len(df), len(df.columns)
+    rep = CleanReport(str(src), str(dst), enc_in, "xlsx",
+                      cells_nfkc=totals["nfkc"], cells_wareki=totals["wareki"],
+                      cells_stripped=totals["stripped"], n_rows=first_rows, n_cols=first_cols)
+    if len(sheet_outputs) > 1:
+        rep.sheet_outputs = sheet_outputs
+    return rep
+
+
+def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig",
+               sheet: str | None = None, out_format: str = "csv") -> CleanReport:
+    src = Path(src)
+    if out_format == "xlsx":
+        return _clean_to_xlsx(src, dst, sheet)
     is_xlsx = src.suffix.lower() in (".xlsx", ".xlsm")
     if not is_xlsx and _count_lines(src, ROW_GUARD + 1) - 1 > ROW_GUARD:
         raise RowGuardError(f"行数がガード{ROW_GUARD}行を超えています。ファイルを分割してから再実行してください。")
@@ -551,6 +597,7 @@ def main(argv: list[str]) -> int:
     p_cln.add_argument("--out")
     p_cln.add_argument("--encoding-out", default="utf-8-sig", choices=["utf-8-sig", "cp932"])
     p_cln.add_argument("--sheet")
+    p_cln.add_argument("--format", default="csv", choices=["csv", "xlsx"], dest="out_format")
     p_dif = sub.add_parser("diff")
     p_dif.add_argument("file_a")
     p_dif.add_argument("file_b")
@@ -589,7 +636,8 @@ def main(argv: list[str]) -> int:
             for n in names:
                 print(n)
     elif args.cmd == "clean":
-        print(clean_file(args.file, args.out, encoding_out=args.encoding_out, sheet=args.sheet).to_markdown())
+        print(clean_file(args.file, args.out, encoding_out=args.encoding_out,
+                         sheet=args.sheet, out_format=args.out_format).to_markdown())
     elif args.cmd == "diff":
         print(diff_files(args.file_a, args.file_b, key=args.key, sheet=args.sheet).to_markdown())
     elif args.cmd == "columns":

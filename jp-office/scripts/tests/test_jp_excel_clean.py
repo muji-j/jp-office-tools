@@ -166,3 +166,31 @@ def test_clean_sheet_name_collision_no_data_loss(tmp_path):
     for _, path, *_ in report.sheet_outputs:
         vals.add(pd.read_csv(path, dtype=str).loc[0, "col"])
     assert vals == {"1", "2"}  # 두 시트 데이터 모두 보존
+
+
+def test_clean_format_xlsx_from_csv(tmp_path):
+    f = tmp_path / "d.csv"
+    f.write_text("列\n１２３\n", encoding="utf-8")
+    rep = jp_excel.clean_file(f, out_format="xlsx")
+    import pandas as pd
+    assert Path(rep.dst).suffix == ".xlsx" and Path(rep.dst).exists()
+    df = pd.read_excel(rep.dst, dtype=str)
+    assert df.loc[0, "列"] == "123"  # NFKC 정규화
+
+
+def test_clean_format_xlsx_multisheet(tmp_path):
+    p = tmp_path / "multi.xlsx"
+    _write_xlsx(p, {"Yosan": [["col"], ["１"]], "Jisseki": [["col"], ["２"]]})
+    rep = jp_excel.clean_file(p, out_format="xlsx")
+    import pandas as pd
+    xls = pd.ExcelFile(rep.dst)
+    assert set(xls.sheet_names) >= {"Yosan", "Jisseki"}
+    d1 = pd.read_excel(rep.dst, sheet_name="Yosan", dtype=str)
+    assert d1.loc[0, "col"] == "1"  # 全角→半角
+
+
+def test_clean_format_csv_still_default(tmp_path):
+    f = tmp_path / "d.csv"
+    f.write_text("列\n１２３\n", encoding="utf-8")
+    rep = jp_excel.clean_file(f)  # 기본 csv
+    assert Path(rep.dst).suffix == ".csv"
