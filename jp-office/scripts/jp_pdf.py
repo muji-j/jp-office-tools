@@ -62,6 +62,7 @@ def render_pages(path, out_dir=None, pages: str | None = None, scale: float = 2.
     """PDF の対象ページを PNG に描画して保存し、保存先パスのリストを返す(原本は変更しない)。"""
     path = Path(path)
     out_dir = Path(out_dir) if out_dir is not None else path.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
     pdf = pypdfium2.PdfDocument(str(path))
     try:
         total = len(pdf)
@@ -103,7 +104,8 @@ def ocr_text(path, pages: str | None = None, lang: str = "jpn+eng") -> str:
         parts = []
         for img_path in img_paths:
             n = int(Path(img_path).stem.rsplit("_p", 1)[1])
-            text = pytesseract.image_to_string(Image.open(img_path), lang=lang)
+            with Image.open(img_path) as img:
+                text = pytesseract.image_to_string(img, lang=lang)
             parts.append(f"--- p.{n} (OCR) ---\n{text}")
         return "\n\n".join(parts)
 

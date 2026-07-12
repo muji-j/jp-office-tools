@@ -123,3 +123,11 @@ def test_extract_cli_ocr_unavailable_prints_clean_message_no_traceback(sample_pd
     err = capsys.readouterr().err
     assert "tesseract" in err
     assert "Traceback" not in err
+
+
+def test_render_creates_missing_out_dir(sample_pdf):
+    out = sample_pdf.parent / "renders" / "sub"
+    assert not out.exists()
+    saved = jp_pdf.render_pages(sample_pdf, out_dir=out, pages="1")
+    assert len(saved) == 1
+    assert Path(saved[0]).exists() and Path(saved[0]).stat().st_size > 0
