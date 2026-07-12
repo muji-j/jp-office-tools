@@ -194,3 +194,18 @@ def test_clean_format_csv_still_default(tmp_path):
     f.write_text("列\n１２３\n", encoding="utf-8")
     rep = jp_excel.clean_file(f)  # 기본 csv
     assert Path(rep.dst).suffix == ".csv"
+
+
+def test_detect_postal_leading_zero(tmp_path):
+    f = tmp_path / "p.csv"
+    f.write_text("氏名,郵便番号\n佐藤,1000001\n鈴木,600001\n", encoding="utf-8")
+    rep = jp_excel.clean_file(f)
+    md = rep.to_markdown()
+    assert "郵便番号" in md and "先頭0" in md
+
+
+def test_detect_no_false_positive(tmp_path):
+    f = tmp_path / "n.csv"
+    f.write_text("氏名,金額\n佐藤,100\n鈴木,200\n", encoding="utf-8")
+    rep = jp_excel.clean_file(f)
+    assert rep.column_warnings == []

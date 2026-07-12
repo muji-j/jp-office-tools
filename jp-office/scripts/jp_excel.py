@@ -46,6 +46,7 @@ class CleanReport:
     n_cols: int = 0
     notes: list[str] = field(default_factory=list)
     sheet_outputs: list = field(default_factory=list)  # (sheet_name, output_path, rows, cols)
+    column_warnings: list = field(default_factory=list)
 
     def to_markdown(self) -> str:
         lines = [
@@ -64,6 +65,10 @@ class CleanReport:
             lines.append("|---|---|---|---|")
             for name, path, rows, cols in self.sheet_outputs:
                 lines.append(f"| {name} | `{Path(path).name}` | {rows} | {cols} |")
+        if self.column_warnings:
+            lines.append("")
+            lines.append("## ⚠️ 疑わしい列")
+            lines += [f"- {w}" for w in self.column_warnings]
         return "\n".join(lines)
 
 
@@ -155,6 +160,31 @@ def column_summary(path, sheet: str | None = None) -> list[dict]:
             "samples": samples,
         })
     return out
+
+
+_POSTAL_COL_RE = re.compile(r"郵便|〒|zip|postal", re.I)
+_PHONE_COL_RE = re.compile(r"電話|TEL|phone", re.I)
+
+
+def detect_column_issues(df) -> list[str]:
+    issues = []
+    for col in df.columns:
+        name = str(col)
+        vals = [v for v in df[col] if isinstance(v, str) and v.strip() != ""]
+        if not vals:
+            continue
+        if _POSTAL_COL_RE.search(name):
+            digits = [re.sub(r"\D", "", v) for v in vals]
+            if any(0 < len(d) < 7 for d in digits):
+                issues.append(f"「{name}」: 郵便番号で桁数が不足する値があります(先頭0の消失の可能性)。")
+        if _PHONE_COL_RE.search(name):
+            if any(re.sub(r"\D", "", v) and not v.lstrip().startswith("0") for v in vals):
+                issues.append(f"「{name}」: 電話番号で先頭0が無い値があります(先頭0の消失の可能性)。")
+        nums = sum(1 for v in vals if _NUM_RE.match(v.strip()))
+        non_num = len(vals) - nums
+        if nums / len(vals) >= 0.8 and 0 < non_num <= len(vals) * 0.2:
+            issues.append(f"「{name}」: 数値列に見えますが一部に非数値が混在しています(集計時に注意)。")
+    return issues
 
 
 def columns_to_markdown(cols: list[dict]) -> str:
@@ -249,11 +279,13 @@ def _clean_to_xlsx(src: Path, dst, sheet: str | None) -> CleanReport:
     sheet_outputs = []
     first_rows = first_cols = 0
     used_labels = set()
+    all_issues = []
     with pd.ExcelWriter(dst, engine="openpyxl") as writer:
         for name in names:
             df, _, _ = _read(src, sheet=name)
             _check_row_guard(df, sheet_label=name or "")
             cleaned, counts = _clean_dataframe(df)
+            all_issues += detect_column_issues(df)
             for k in totals:
                 totals[k] += counts[k]
             label = _safe_sheet_name(name)[:31] if name else "Sheet1"
@@ -270,6 +302,7 @@ def _clean_to_xlsx(src: Path, dst, sheet: str | None) -> CleanReport:
     rep = CleanReport(str(src), str(dst), enc_in, "xlsx",
                       cells_nfkc=totals["nfkc"], cells_wareki=totals["wareki"],
                       cells_stripped=totals["stripped"], n_rows=first_rows, n_cols=first_cols)
+    rep.column_warnings = list(dict.fromkeys(all_issues))
     if len(sheet_outputs) > 1:
         rep.sheet_outputs = sheet_outputs
     return rep
@@ -307,6 +340,7 @@ def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig",
     cleaned, counts = _clean_dataframe(df)
     rep.cells_nfkc, rep.cells_wareki, rep.cells_stripped = counts["nfkc"], counts["wareki"], counts["stripped"]
     cleaned.to_csv(dst, index=False, encoding=encoding_out)
+    rep.column_warnings = detect_column_issues(df)
     return rep
 
 
