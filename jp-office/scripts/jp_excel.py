@@ -18,7 +18,7 @@ class RowGuardError(Exception):
 
 def detect_encoding(path) -> tuple[str, str]:
     if Path(path).suffix.lower() in (".xlsx", ".xlsm"):
-        return "xlsx", "xlsx はバイナリ形式のため文字コード判定は不要(先頭シートを読み込みます)"
+        return "xlsx", "xlsx はバイナリ形式のため文字コード判定は不要"
     raw = Path(path).read_bytes()
     if raw.startswith(b"\xef\xbb\xbf"):
         return "utf-8-sig", "UTF-8 BOM を検出"

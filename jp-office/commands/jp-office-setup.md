@@ -17,12 +17,18 @@ argument-hint: "(なし)"
 ### 2. ライブラリの点検
 `python -c "import <mod>"` の成否で判定:
 - **Excel/CSV 系**: `pandas`, `openpyxl`
-- **PDF 系**: `pdfplumber`
+- **PDF 系**: `pdfplumber`(テキスト抽出)、`pypdfium2`・`PIL`(スキャンPDFの画像レンダー)
 - **日付系**: `jpholiday`
 
 ### 3. 不足があれば確認して導入
 - 不足パッケージを一覧で示し、導入可否を**ユーザーに確認**(AskUserQuestion 可)。
 - 同意後: `python -m pip install -r "${CLAUDE_PLUGIN_ROOT}/scripts/requirements.txt"`
+
+### 3'. (任意)スキャンPDF の OCR
+- スキャンPDF(画像)を**オフラインでテキスト化**したい場合のみ、`tesseract` 本体(＋日本語データ `jpn`)と `pytesseract` が必要。
+  - Windows: `winget install -e --id UB-Mannheim.TesseractOCR` を提案(日本語データ同梱版)。macOS: `brew install tesseract tesseract-lang`。Linux: `apt install tesseract-ocr tesseract-ocr-jpn` 等。
+  - `python -m pip install pytesseract`。
+- **不要な場合が多い**: スキャンPDF は `jp_pdf.py render` で画像化し、**Claude の視覚(ビジョン)で直接読み取る**のが既定。tesseract は headless/一括処理向けの任意機能。
 
 ### 4. 動作確認
 - `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_dates.py" holiday 2026-01-01` が `元日` を返すか。

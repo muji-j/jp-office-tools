@@ -1,6 +1,6 @@
 ---
 name: jp-excel
-description: Excel/CSVファイルの取り扱い全般 — 文字化け・エンコーディング変換(Shift-JIS/CP932/UTF-8)、全角半角・和暦日付の正規化、ファイル比較(diff、xlsxは先頭シート)、集計・グラフ作成の際に使用。キーワード - 文字化け, Shift-JIS, CP932, BOM, 全角, 半角, CSV, Excel, xlsx, セル結合, 突合, 差分比較, ピボット, クロス集計。
+description: Excel/CSVファイルの取り扱い全般 — 文字化け・エンコーディング変換(Shift-JIS/CP932/UTF-8)、全角半角・和暦日付の正規化、ファイル比較(diff、xlsxは全シート対応)、集計・グラフ作成の際に使用。キーワード - 文字化け, Shift-JIS, CP932, BOM, 全角, 半角, CSV, Excel, xlsx, シート, セル結合, 突合, 差分比較, ピボット, クロス集計。
 ---
 
 # jp-excel — Excel/CSV ワークベンチ(日本の事務環境向け)
@@ -18,7 +18,10 @@ description: Excel/CSVファイルの取り扱い全般 — 文字化け・エ�
 | 目的 | コマンド |
 |---|---|
 | エンコーディング判別 | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" detect <file>` |
-| クレンジング(コピーに出力) | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" clean <file> [--out X] [--encoding-out utf-8-sig\|cp932]` |
-| 差分比較 | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" diff <A> <B> [--key 列名]` |
+| シート一覧(xlsx) | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" sheets <file>` |
+| クレンジング(コピーに出力) | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" clean <file> [--out X] [--encoding-out utf-8-sig\|cp932] [--sheet シート名]` |
+| 差分比較 | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" diff <A> <B> [--key 列名] [--sheet シート名]` |
 
-出力エンコーディングの既定は `utf-8-sig`(Excel がそのまま開ける)。行数ガード 50万行。
+出力エンコーディングの既定は `utf-8-sig`(Excel がそのまま開ける)。行数ガードはシートごとに 50万行。
+
+**xlsx の複数シート**: `clean` は全シートを処理し、シートごとに `<名前>_<シート名>_cleaned.csv` を出力する(レポートにシート別の一覧)。`diff` はシート名を突き合わせてシート単位で比較する。特定の1シートだけを扱うときは `--sheet シート名` を付ける。
