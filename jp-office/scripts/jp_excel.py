@@ -178,7 +178,9 @@ def detect_column_issues(df) -> list[str]:
             if any(0 < len(d) < 7 for d in digits):
                 issues.append(f"「{name}」: 郵便番号で桁数が不足する値があります(先頭0の消失の可能性)。")
         if _PHONE_COL_RE.search(name):
-            if any(re.sub(r"\D", "", v) and not v.lstrip().startswith("0") for v in vals):
+            if any(re.sub(r"\D", "", v) and
+                   not unicodedata.normalize("NFKC", v.lstrip()).startswith("0")
+                   for v in vals):
                 issues.append(f"「{name}」: 電話番号で先頭0が無い値があります(先頭0の消失の可能性)。")
         nums = sum(1 for v in vals if _NUM_RE.match(v.strip()))
         non_num = len(vals) - nums
@@ -233,10 +235,12 @@ def _clean_xlsx_all_sheets(src: Path, dst, encoding_out: str, names: list[str]) 
     sheet_outputs = []
     first_dst = first_rows = first_cols = None
     used = set()  # Track output paths to detect collisions
+    all_issues = []
     for name in names:
         df = pd.read_excel(src, sheet_name=name, dtype=str)
         _check_row_guard(df, sheet_label=name)
         cleaned, counts = _clean_dataframe(df)
+        all_issues += detect_column_issues(df)
         for k in totals:
             totals[k] += counts[k]
         out_path = src.with_name(f"{src.stem}_{_safe_sheet_name(name)}_cleaned.csv")
@@ -256,6 +260,7 @@ def _clean_xlsx_all_sheets(src: Path, dst, encoding_out: str, names: list[str]) 
         cells_nfkc=totals["nfkc"], cells_wareki=totals["wareki"], cells_stripped=totals["stripped"],
         n_rows=first_rows, n_cols=first_cols, sheet_outputs=sheet_outputs,
     )
+    rep.column_warnings = list(dict.fromkeys(all_issues))
     if dst is not None:
         rep.notes.append(
             f"複数シートのため --out(『{dst}』) は無視し、シートごとに自動命名で出力しました。")

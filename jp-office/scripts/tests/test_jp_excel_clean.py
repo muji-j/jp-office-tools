@@ -209,3 +209,17 @@ def test_detect_no_false_positive(tmp_path):
     f.write_text("氏名,金額\n佐藤,100\n鈴木,200\n", encoding="utf-8")
     rep = jp_excel.clean_file(f)
     assert rep.column_warnings == []
+
+
+def test_phone_zenkaku_zero_no_false_positive(tmp_path):
+    f = tmp_path / "ph.csv"
+    f.write_text("氏名,電話\n佐藤,０９０１２３４５６７８\n", encoding="utf-8")
+    rep = jp_excel.clean_file(f)
+    assert not any(("電話" in w and "先頭0" in w) for w in rep.column_warnings)
+
+
+def test_clean_xlsx_multisheet_csv_warnings(tmp_path):
+    p = tmp_path / "m.xlsx"
+    _write_xlsx(p, {"S1": [["氏名", "郵便番号"], ["佐藤", "600001"]], "S2": [["col"], ["x"]]})
+    rep = jp_excel.clean_file(p)  # 기본 csv, 다중시트 → _clean_xlsx_all_sheets 경로
+    assert any("郵便番号" in w for w in rep.column_warnings)
