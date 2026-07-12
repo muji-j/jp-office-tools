@@ -155,3 +155,14 @@ def test_clean_sheet_name_safe_filename(tmp_path):
     by_name = {name: Path(path).name for name, path, *_ in report.sheet_outputs}
     assert by_name["A|B"] == "multi2_A_B_cleaned.csv"
     assert by_name['C"D'] == "multi2_C_D_cleaned.csv"
+
+def test_clean_sheet_name_collision_no_data_loss(tmp_path):
+    p = tmp_path / "coll.xlsx"
+    _write_xlsx(p, {"A_B": [["col"], ["1"]], "A|B": [["col"], ["2"]]})
+    report = jp_excel.clean_file(p)
+    paths = [s[1] for s in report.sheet_outputs]
+    assert len(set(paths)) == 2  # 두 시트가 서로 다른 파일로
+    vals = set()
+    for _, path, *_ in report.sheet_outputs:
+        vals.add(pd.read_csv(path, dtype=str).loc[0, "col"])
+    assert vals == {"1", "2"}  # 두 시트 데이터 모두 보존

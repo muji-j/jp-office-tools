@@ -157,6 +157,7 @@ def _clean_xlsx_all_sheets(src: Path, dst, encoding_out: str, names: list[str]) 
     totals = {"nfkc": 0, "wareki": 0, "stripped": 0}
     sheet_outputs = []
     first_dst = first_rows = first_cols = None
+    used = set()  # Track output paths to detect collisions
     for name in names:
         df = pd.read_excel(src, sheet_name=name, dtype=str)
         _check_row_guard(df, sheet_label=name)
@@ -164,10 +165,17 @@ def _clean_xlsx_all_sheets(src: Path, dst, encoding_out: str, names: list[str]) 
         for k in totals:
             totals[k] += counts[k]
         out_path = src.with_name(f"{src.stem}_{_safe_sheet_name(name)}_cleaned.csv")
-        cleaned.to_csv(out_path, index=False, encoding=encoding_out)
-        sheet_outputs.append((name, str(out_path), len(df), len(df.columns)))
+        # Collision detection: ensure unique output path
+        final = out_path
+        i = 2
+        while str(final) in used:
+            final = out_path.with_name(f"{out_path.stem}_{i}{out_path.suffix}")
+            i += 1
+        used.add(str(final))
+        cleaned.to_csv(final, index=False, encoding=encoding_out)
+        sheet_outputs.append((name, str(final), len(df), len(df.columns)))
         if first_dst is None:
-            first_dst, first_rows, first_cols = out_path, len(df), len(df.columns)
+            first_dst, first_rows, first_cols = final, len(df), len(df.columns)
     rep = CleanReport(
         str(src), str(first_dst), enc_in, encoding_out,
         cells_nfkc=totals["nfkc"], cells_wareki=totals["wareki"], cells_stripped=totals["stripped"],
