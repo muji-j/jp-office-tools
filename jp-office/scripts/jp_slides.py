@@ -201,7 +201,7 @@ def _slide_message(P, prs, theme, s):
     return slide
 
 
-# ---- アーキタイプ配置(このタスク: minimal-centered, accent-bar) ----
+# ---- アーキタイプ配置(5種すべて) ----
 def _content_left(theme):
     return 1.8 if theme.archetype == "sidebar" else 0.9
 
@@ -210,13 +210,36 @@ def _content_width(theme):
     return 10.6 if theme.archetype == "sidebar" else 11.5
 
 
+def _on_accent_text(theme):
+    """アクセント/帯の上に置く文字色。明るいテーマ=bg、ダークテーマ=text。
+
+    Task 4 の表ヘッダー文字色でも再利用するため、シグネチャは安定させる。
+    """
+    return theme.text if theme.dark else theme.bg
+
+
+def _band_color(theme):
+    """header-band の帯色。明るいテーマ=accent、ダークテーマ=rule(控えめな対比)。"""
+    return theme.accent if not theme.dark else theme.rule
+
+
 def _accent_decor(P, slide, theme, *, cover):
     a = theme.archetype
     if a == "accent-bar":
         _rect(P, slide, 0.9, 1.2, 3.2, 0.13, theme.accent)  # 上部左側の短いバー
     elif a == "minimal-centered":
         _rect(P, slide, 0.9, 1.25, 11.5, 0.02, theme.rule)  # 細いルール
-    # header-band / sidebar / color-block は Task 3 で追加
+    elif a == "header-band":
+        _rect(P, slide, 0.0, 0.0, 13.333, 1.05, _band_color(theme))
+        # 帯の上に細いアクセントライン(ダークテーマの差し色)
+        if theme.dark:
+            _rect(P, slide, 0.0, 1.05, 13.333, 0.06, theme.accent)
+    elif a == "sidebar":
+        _rect(P, slide, 0.0, 0.0, 1.4, 7.5, theme.accent)
+    elif a == "color-block":
+        _rect(P, slide, 0.0, 0.0, 0.55, 7.5, theme.accent)
+        second = theme.accent2 or theme.text
+        _rect(P, slide, 0.55, 0.0, 0.22, 7.5, second)
 
 
 _SLIDE_DISPATCH = {}  # Task 3/4 で table/image/section を追加
