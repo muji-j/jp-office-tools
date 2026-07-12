@@ -364,6 +364,67 @@ def _resolve_theme(content: dict):
     return replace(base, **changes) if changes else base
 
 
+_SAMPLE_CONTENT = {
+    "meta": {"title": "月次営業報告(サンプル)", "date": "2026年7月", "author": "山田太郎"},
+    "pattern": "conclusion",
+    "slides": [
+        {"type": "cover", "title": "月次営業報告", "subtitle": "2026年6月度",
+         "date": "2026年7月13日", "author": "企画部 山田太郎"},
+        {"type": "message", "headline": "6月の売上は前月比12%増加した",
+         "body": ["新規契約が8件成立", "解約はゼロ", "主力商品Aが牽引"]},
+        {"type": "table", "headline": "案の比較", "columns": ["評価軸", "A案", "B案"],
+         "rows": [["コスト", "低", "高"], ["納期", "3週間", "5週間"], ["実績", "多数", "少数"]]},
+    ],
+}
+
+
+def build_gallery(out_dir: str) -> list[str]:
+    """全16テーマを同一サンプルコンテンツでレンダーし、overview.pptx も添える。生成パス一覧を返す。"""
+    d = Path(out_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    made = []
+    for key in THEMES:
+        obj = dict(_SAMPLE_CONTENT)
+        obj["theme"] = key
+        content = parse_content(obj)
+        made.append(render_deck(content, out=str(d / f"{key}.pptx")))
+    made.append(build_overview(str(d / "overview.pptx")))
+    return made
+
+
+def build_overview(out: str) -> str:
+    """単一スライドに全テーマの 4x4 カード(bg・accent スウォッチ・テーマ名)を並べて保存。"""
+    P = _require_pptx()
+    prs = _new_presentation(P, None)
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    slide.background.fill.solid()
+    slide.background.fill.fore_color.rgb = _rgb(P, "FFFFFF")
+    keys = list(THEMES)
+    cols = 4
+    cw, ch = 3.0, 1.6
+    x0, y0, gx, gy = 0.55, 0.5, 0.2, 0.15
+    for i, key in enumerate(keys):
+        t = THEMES[key]
+        r, c = divmod(i, cols)
+        left = x0 + c * (cw + gx)
+        top = y0 + r * (ch + gy)
+        card = _rect(P, slide, left, top, cw, ch, t.bg)
+        card.line.color.rgb = _rgb(P, t.rule)
+        card.line.width = P["Pt"](0.75)
+        _rect(P, slide, left + 0.12, top + 0.12, 0.5, 0.5, t.accent)
+        if t.accent2:
+            _rect(P, slide, left + 0.66, top + 0.12, 0.28, 0.5, t.accent2)
+        tb = _textbox(P, slide, left + 0.12, top + 0.72, cw - 0.24, 0.7)
+        p = tb.text_frame.paragraphs[0]
+        _apply_font(P, p.add_run(), t.heading_font, 16, bold=True, color=_rgb(P, t.text))
+        p.runs[0].text = f"{t.key}"
+        p2 = tb.text_frame.add_paragraph()
+        _apply_font(P, p2.add_run(), t.body_font, 9, color=_rgb(P, t.text))
+        p2.runs[0].text = f"{t.family} / {t.archetype}"
+    prs.save(out)
+    return out
+
+
 def _build_argparser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="jp-office スライド生成")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -403,7 +464,13 @@ def main(argv: list[str]) -> int:
         content = parse_content(obj)
         print(render_deck(content, out=args.out))
         return 0
-    # gallery/overview は後続タスクで実装
+    if args.cmd == "gallery":
+        paths = build_gallery(args.out_dir)
+        print(f"{len(paths)} ファイルを生成: {args.out_dir}")
+        return 0
+    if args.cmd == "overview":
+        print(build_overview(args.out))
+        return 0
     raise NotImplementedError(f"未実装のサブコマンド: {args.cmd}")
 
 
