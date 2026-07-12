@@ -1,5 +1,7 @@
 """jp-office: Excel/CSV ワークベンチ — 診断・クレンジング・diff(原本は変更しない)."""
 import argparse
+import json
+import re
 import sys
 import unicodedata
 from dataclasses import dataclass, field
@@ -118,6 +120,49 @@ def _read(path: Path, sheet: str | None = None) -> tuple[pd.DataFrame, str, str]
         return df, enc, note
     enc, _ = detect_encoding(path)
     return pd.read_csv(path, dtype=str, encoding=enc, encoding_errors="replace"), enc, ""
+
+
+_NUM_RE = re.compile(r"^-?[\d,]+(\.\d+)?$")
+_DATE_RE = re.compile(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}$|^(令和|平成|昭和|R\d|H\d|S\d)")
+
+
+def _infer_column_type(series) -> str:
+    vals = [v for v in series if isinstance(v, str) and v.strip() != ""]
+    if not vals:
+        return "text"
+    num = sum(1 for v in vals if _NUM_RE.match(v.strip()))
+    dat = sum(1 for v in vals if _DATE_RE.match(v.strip()))
+    if num / len(vals) >= 0.8:
+        return "numeric"
+    if dat / len(vals) >= 0.8:
+        return "date"
+    return "text"
+
+
+def column_summary(path, sheet: str | None = None) -> list[dict]:
+    """各列の名前・推定型・非空数・ユニーク数・サンプル3件を返す(読み取り専用)。"""
+    df, _, _ = _read(Path(path), sheet=sheet)
+    out = []
+    for col in df.columns:
+        s = df[col]
+        non_null = [v for v in s if isinstance(v, str) and v.strip() != ""]
+        samples = list(dict.fromkeys(non_null))[:3]
+        out.append({
+            "name": str(col),
+            "type": _infer_column_type(s),
+            "non_null": len(non_null),
+            "n_unique": int(s.nunique(dropna=True)),
+            "samples": samples,
+        })
+    return out
+
+
+def columns_to_markdown(cols: list[dict]) -> str:
+    lines = ["## 列サマリ", "| 列 | 型 | 非空 | ユニーク | サンプル |", "|---|---|---|---|---|"]
+    for c in cols:
+        samp = ", ".join(c["samples"])
+        lines.append(f"| {c['name']} | {c['type']} | {c['non_null']} | {c['n_unique']} | {samp} |")
+    return "\n".join(lines)
 
 
 def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
@@ -371,6 +416,10 @@ def main(argv: list[str]) -> int:
     p_dif.add_argument("file_b")
     p_dif.add_argument("--key")
     p_dif.add_argument("--sheet")
+    p_cols = sub.add_parser("columns")
+    p_cols.add_argument("file")
+    p_cols.add_argument("--sheet")
+    p_cols.add_argument("--format", default="md", choices=["md", "json"])
     args = ap.parse_args(argv[1:])
     if args.cmd == "detect":
         enc, evidence = detect_encoding(args.file)
@@ -386,6 +435,12 @@ def main(argv: list[str]) -> int:
         print(clean_file(args.file, args.out, encoding_out=args.encoding_out, sheet=args.sheet).to_markdown())
     elif args.cmd == "diff":
         print(diff_files(args.file_a, args.file_b, key=args.key, sheet=args.sheet).to_markdown())
+    elif args.cmd == "columns":
+        cols = column_summary(args.file, sheet=args.sheet)
+        if args.format == "json":
+            print(json.dumps(cols, ensure_ascii=False, indent=2))
+        else:
+            print(columns_to_markdown(cols))
     return 0
 
 
