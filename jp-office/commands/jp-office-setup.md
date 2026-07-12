@@ -16,7 +16,7 @@ argument-hint: "(なし)"
 
 ### 2. ライブラリの点検
 `python -c "import <mod>"` の成否で判定:
-- **Excel/CSV 系**: `pandas`, `openpyxl`
+- **Excel/CSV 系**: `pandas`, `openpyxl`, `matplotlib`(グラフ生成)
 - **PDF 系**: `pdfplumber`(テキスト抽出)、`pypdfium2`・`PIL`(スキャンPDFの画像レンダー)
 - **日付系**: `jpholiday`
 

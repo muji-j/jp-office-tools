@@ -160,3 +160,29 @@ for name, df in sheets.items():
 merged = pd.concat(frames, ignore_index=True)
 print(merged["シート名"].value_counts())
 ```
+
+## 7. `pivot` コマンドでのクロス集計(列指定なしでも可)
+
+**手順**
+
+1. 集計軸・集計値の列名がわからない、または利用者が自然文(例:「店舗別・月別の売上合計」)で依頼した場合は、まず `columns` で列構造(型・サンプル)を把握する。
+2. 文字列/カテゴリ列を index、数値列を values、既定 `--agg sum` として利用者に確認する(明白なら確認を省略可)。
+3. `pivot` を実行するとマークダウン表を表示し、同時に `<ファイル>_pivot.csv` へ保存する(`pd.pivot_table(..., margins=True)` 相当で合計行・合計列つき)。集計値が文字列化している場合は合計が 0 になることがあるため、事前に `clean` を案内してもよい。
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" columns 売上.csv
+python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" pivot 売上.csv --index 担当者 --values 金額 --agg sum
+```
+
+## 8. `chart` コマンドでのグラフ生成(PNG/HTML)
+
+**手順**
+
+1. x軸・y軸の列名がわからない、または自然文(例:「月別の売上を折れ線で」)の依頼の場合は、まず `columns` で列構造を把握する。
+2. x軸(日付/カテゴリ列)・y軸(数値列)・種類(時系列→line、カテゴリ比較→bar、構成比→pie)を推定して確認する(明白なら実行してよい)。
+3. `chart` を実行すると既定で PNG(`<ファイル>_chart.png`)を生成する。`--format html` を指定すると SVG 埋め込みの単一 HTML ファイルを生成し、ブラウザでそのまま開ける。日本語ラベルの文字化け(豆腐)を防ぐため、Meiryo → Yu Gothic → MS Gothic の順でフォールバックしてフォントを設定する(`_set_jp_font`)。フォントが無い環境では文字化けの可能性を利用者に伝える。
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" columns 売上.csv
+python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_excel.py" chart 売上.csv --kind line --x 年月 --y 金額 --title 月次推移
+```
