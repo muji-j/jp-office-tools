@@ -13,7 +13,7 @@
 
 | 相対表現 | 変換方法 | コマンド例 | 文面への反映例 |
 |---|---|---|---|
-| ◯営業日後 | 営業日ベースで加算 | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_dates.py" addbiz 2026-07-11 3` | 「3営業日後(7月16日(木))」 |
+| ◯営業日後 | 営業日ベースで加算 | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_dates.py" addbiz 2026-07-11 3` | 「3営業日後(7月15日(水))」 |
 | 今月末 | 当月末日を暦日で特定し、休日なら`holiday`で確認 | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_dates.py" holiday 2026-07-31` | 「今月末(7月31日(金))」 |
 | 今月末の営業日ベースで | 月末日が休日の場合、直前営業日に丸める | `addbiz 2026-07-31 -1`(月末が休日のとき) | 「今月末の営業日(7月30日(木))」 |
 | 来週の◯曜日 | 暦日から曜日を特定し、祝日でないか確認 | `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_dates.py" holiday 2026-07-16` | 「来週木曜日(7月16日)」 |
