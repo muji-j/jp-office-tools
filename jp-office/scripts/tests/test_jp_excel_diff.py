@@ -46,3 +46,53 @@ def test_diff_key_blank_rejected(tmp_path):
     b.write_text("ID,v\n1,a\n", encoding="utf-8")
     with pytest.raises(ValueError, match="空"):
         jp_excel.diff_files(a, b, key="ID")
+
+
+def _write_xlsx(path, sheets: dict):
+    from openpyxl import Workbook
+    wb = Workbook()
+    first = True
+    for name, rows in sheets.items():
+        ws = wb.active if first else wb.create_sheet()
+        ws.title = name
+        first = False
+        for r in rows:
+            ws.append(r)
+    wb.save(path)
+
+
+def test_diff_multisheet_common_and_unique(tmp_path):
+    a = tmp_path / "a.xlsx"
+    b = tmp_path / "b.xlsx"
+    _write_xlsx(a, {"Yosan": [["ID", "v"], ["1", "100"]], "OnlyA": [["x"], ["1"]]})
+    _write_xlsx(b, {"Yosan": [["ID", "v"], ["1", "150"]], "OnlyB": [["y"], ["2"]]})
+    rep = jp_excel.diff_files(a, b)
+    names = {s[0] for s in rep.sheet_diffs}
+    assert names == {"Yosan"}
+    yosan_sub = dict(rep.sheet_diffs)["Yosan"]
+    assert ("行2", "v", "100", "150") in yosan_sub.changed
+    assert rep.added_sheets == ["OnlyB"]
+    assert rep.removed_sheets == ["OnlyA"]
+    md = rep.to_markdown()
+    assert "Yosan" in md and "OnlyA" in md and "OnlyB" in md
+
+
+def test_diff_multisheet_with_key(tmp_path):
+    a = tmp_path / "a.xlsx"
+    b = tmp_path / "b.xlsx"
+    _write_xlsx(a, {"Sheet1": [["ID", "v"], ["1", "100"], ["2", "200"]]})
+    _write_xlsx(b, {"Sheet1": [["ID", "v"], ["1", "150"], ["3", "300"]]})
+    rep = jp_excel.diff_files(a, b, key="ID")
+    sub = dict(rep.sheet_diffs)["Sheet1"]
+    assert ("1", "v", "100", "150") in sub.changed
+    assert sub.added_rows == ["3"] and sub.removed_rows == ["2"]
+
+
+def test_diff_single_sheet_specified(tmp_path):
+    a = tmp_path / "a.xlsx"
+    b = tmp_path / "b.xlsx"
+    _write_xlsx(a, {"Yosan": [["col"], ["1"]], "Jisseki": [["col"], ["9"]]})
+    _write_xlsx(b, {"Yosan": [["col"], ["2"]], "Jisseki": [["col"], ["9"]]})
+    rep = jp_excel.diff_files(a, b, sheet="Yosan")
+    assert rep.sheet_diffs == []
+    assert ("行2", "col", "1", "2") in rep.changed

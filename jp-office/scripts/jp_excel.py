@@ -43,6 +43,7 @@ class CleanReport:
     n_rows: int = 0
     n_cols: int = 0
     notes: list[str] = field(default_factory=list)
+    sheet_outputs: list = field(default_factory=list)  # (sheet_name, output_path, rows, cols)
 
     def to_markdown(self) -> str:
         lines = [
@@ -54,6 +55,13 @@ class CleanReport:
             f" / 前後空白除去セル: {self.cells_stripped}",
         ]
         lines += [f"- 注記: {n}" for n in self.notes]
+        if self.sheet_outputs:
+            lines.append("")
+            lines.append("## シート別出力")
+            lines.append("| シート | 出力ファイル | 行 | 列 |")
+            lines.append("|---|---|---|---|")
+            for name, path, rows, cols in self.sheet_outputs:
+                lines.append(f"| {name} | `{Path(path).name}` | {rows} | {cols} |")
         return "\n".join(lines)
 
 
@@ -71,10 +79,35 @@ def _xlsx_sheet_names(path) -> list[str]:
     return pd.ExcelFile(path).sheet_names
 
 
-def _read(path: Path) -> tuple[pd.DataFrame, str, str]:
+def list_sheets(path) -> list[str]:
+    """xlsx/xlsm はシート名一覧、CSV は空リストを返す。"""
+    path = Path(path)
+    if path.suffix.lower() in (".xlsx", ".xlsm"):
+        return _xlsx_sheet_names(path)
+    return []
+
+
+_UNSAFE_FILENAME_CHARS = '/\\:*?"<>|'
+
+
+def _safe_sheet_name(name: str) -> str:
+    """シート名をファイル名として安全な文字列に変換(不可文字は '_' に置換)。"""
+    out = name
+    for ch in _UNSAFE_FILENAME_CHARS:
+        out = out.replace(ch, "_")
+    return out
+
+
+def _read(path: Path, sheet: str | None = None) -> tuple[pd.DataFrame, str, str]:
+    path = Path(path)
     if path.suffix.lower() in (".xlsx", ".xlsm"):
         enc, _ = detect_encoding(path)
         names = _xlsx_sheet_names(path)
+        if sheet is not None:
+            if sheet not in names:
+                raise ValueError(f"シート「{sheet}」が見つかりません。利用可能なシート: {', '.join(names)}")
+            df = pd.read_excel(path, sheet_name=sheet, dtype=str)
+            return df, enc, ""
         df = pd.read_excel(path, sheet_name=names[0], dtype=str)
         note = ""
         if len(names) > 1:
@@ -87,20 +120,8 @@ def _read(path: Path) -> tuple[pd.DataFrame, str, str]:
     return pd.read_csv(path, dtype=str, encoding=enc, encoding_errors="replace"), enc, ""
 
 
-def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig") -> CleanReport:
-    src = Path(src)
-    if src.suffix.lower() not in (".xlsx", ".xlsm") and _count_lines(src, ROW_GUARD + 1) - 1 > ROW_GUARD:
-        raise RowGuardError(f"行数がガード{ROW_GUARD}行を超えています。ファイルを分割してから再実行してください。")
-    df, enc_in, note = _read(src)
-    if len(df) > ROW_GUARD:
-        raise RowGuardError(f"{len(df)}行 > ガード{ROW_GUARD}行。ファイルを分割してから再実行してください。")
-    dst = Path(dst) if dst else src.with_name(f"{src.stem}_cleaned.csv")
-    if dst.resolve() == src.resolve():
-        raise ValueError("出力先が入力と同一です(原本は変更しない方針)。--out で別名を指定してください。")
-    rep = CleanReport(str(src), str(dst), enc_in, encoding_out,
-                      n_rows=len(df), n_cols=len(df.columns))
-    if note:
-        rep.notes.append(note)
+def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    counts = {"nfkc": 0, "wareki": 0, "stripped": 0}
 
     def _clean_cell(v):
         if not isinstance(v, str):
@@ -108,19 +129,84 @@ def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig") -> CleanReport
         out = v
         stripped = out.strip()
         if stripped != out:
-            rep.cells_stripped += 1
+            counts["stripped"] += 1
             out = stripped
         nfkc = unicodedata.normalize("NFKC", out)
         if nfkc != out:
-            rep.cells_nfkc += 1
+            counts["nfkc"] += 1
             out = nfkc
         iso = wareki_to_iso(out, full=True)
         if iso and iso != out:
-            rep.cells_wareki += 1
+            counts["wareki"] += 1
             out = iso
         return out
 
     cleaned = df.map(_clean_cell)
+    return cleaned, counts
+
+
+def _check_row_guard(df: pd.DataFrame, sheet_label: str = "") -> None:
+    if len(df) > ROW_GUARD:
+        prefix = f"シート「{sheet_label}」: " if sheet_label else ""
+        raise RowGuardError(
+            f"{prefix}{len(df)}行 > ガード{ROW_GUARD}行。ファイルを分割してから再実行してください。")
+
+
+def _clean_xlsx_all_sheets(src: Path, dst, encoding_out: str, names: list[str]) -> CleanReport:
+    enc_in, _ = detect_encoding(src)
+    totals = {"nfkc": 0, "wareki": 0, "stripped": 0}
+    sheet_outputs = []
+    first_dst = first_rows = first_cols = None
+    for name in names:
+        df = pd.read_excel(src, sheet_name=name, dtype=str)
+        _check_row_guard(df, sheet_label=name)
+        cleaned, counts = _clean_dataframe(df)
+        for k in totals:
+            totals[k] += counts[k]
+        out_path = src.with_name(f"{src.stem}_{_safe_sheet_name(name)}_cleaned.csv")
+        cleaned.to_csv(out_path, index=False, encoding=encoding_out)
+        sheet_outputs.append((name, str(out_path), len(df), len(df.columns)))
+        if first_dst is None:
+            first_dst, first_rows, first_cols = out_path, len(df), len(df.columns)
+    rep = CleanReport(
+        str(src), str(first_dst), enc_in, encoding_out,
+        cells_nfkc=totals["nfkc"], cells_wareki=totals["wareki"], cells_stripped=totals["stripped"],
+        n_rows=first_rows, n_cols=first_cols, sheet_outputs=sheet_outputs,
+    )
+    if dst is not None:
+        rep.notes.append(
+            f"複数シートのため --out(『{dst}』) は無視し、シートごとに自動命名で出力しました。")
+    return rep
+
+
+def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig", sheet: str | None = None) -> CleanReport:
+    src = Path(src)
+    is_xlsx = src.suffix.lower() in (".xlsx", ".xlsm")
+    if not is_xlsx and _count_lines(src, ROW_GUARD + 1) - 1 > ROW_GUARD:
+        raise RowGuardError(f"行数がガード{ROW_GUARD}行を超えています。ファイルを分割してから再実行してください。")
+
+    if is_xlsx and sheet is None:
+        names = _xlsx_sheet_names(src)
+        if len(names) > 1:
+            return _clean_xlsx_all_sheets(src, dst, encoding_out, names)
+
+    df, enc_in, note = _read(src, sheet=sheet)
+    _check_row_guard(df)
+    if dst:
+        dst = Path(dst)
+    elif is_xlsx and sheet is not None:
+        dst = src.with_name(f"{src.stem}_{_safe_sheet_name(sheet)}_cleaned.csv")
+    else:
+        dst = src.with_name(f"{src.stem}_cleaned.csv")
+    if dst.resolve() == src.resolve():
+        raise ValueError("出力先が入力と同一です(原本は変更しない方針)。--out で別名を指定してください。")
+    rep = CleanReport(str(src), str(dst), enc_in, encoding_out,
+                      n_rows=len(df), n_cols=len(df.columns))
+    if note:
+        rep.notes.append(note)
+
+    cleaned, counts = _clean_dataframe(df)
+    rep.cells_nfkc, rep.cells_wareki, rep.cells_stripped = counts["nfkc"], counts["wareki"], counts["stripped"]
     cleaned.to_csv(dst, index=False, encoding=encoding_out)
     return rep
 
@@ -133,13 +219,14 @@ class DiffReport:
     added_cols: list = field(default_factory=list)
     removed_cols: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
+    sheet_diffs: list = field(default_factory=list)   # (sheet_name, DiffReport) — 共通シートごと
+    added_sheets: list = field(default_factory=list)  # Bのみに存在するシート
+    removed_sheets: list = field(default_factory=list)  # Aのみに存在するシート
     LIMIT: int = 200
 
-    def to_markdown(self) -> str:
-        lines = ["## 差分レポート"]
-        lines += [f"- {w}" for w in self.warnings]
-        lines.append(f"- 変更セル: {len(self.changed)}件 / 追加行: {len(self.added_rows)}件"
-                     f" / 削除行: {len(self.removed_rows)}件")
+    def _body_lines(self) -> list[str]:
+        lines = [f"- 変更セル: {len(self.changed)}件 / 追加行: {len(self.added_rows)}件"
+                 f" / 削除行: {len(self.removed_rows)}件"]
         if self.added_cols:
             lines.append(f"- 追加列: {', '.join(self.added_cols)}")
         if self.removed_cols:
@@ -154,6 +241,24 @@ class DiffReport:
                 shown = ", ".join(map(str, rows[: self.LIMIT]))
                 extra = f" …ほか{len(rows) - self.LIMIT}件" if len(rows) > self.LIMIT else ""
                 lines.append(f"- {title}: {shown}{extra}")
+        return lines
+
+    def to_markdown(self) -> str:
+        if self.sheet_diffs or self.added_sheets or self.removed_sheets:
+            lines = ["## 差分レポート(シート別)"]
+            lines += [f"- {w}" for w in self.warnings]
+            if self.added_sheets:
+                lines.append(f"- B(新)のみに存在するシート: {', '.join(self.added_sheets)}")
+            if self.removed_sheets:
+                lines.append(f"- A(旧)のみに存在するシート: {', '.join(self.removed_sheets)}")
+            for name, sub in self.sheet_diffs:
+                lines.append("")
+                lines.append(f"### シート: {name}")
+                lines += sub._body_lines()
+            return "\n".join(lines)
+        lines = ["## 差分レポート"]
+        lines += [f"- {w}" for w in self.warnings]
+        lines += self._body_lines()
         return "\n".join(lines)
 
 
@@ -161,12 +266,8 @@ def _fill(df: pd.DataFrame) -> pd.DataFrame:
     return df.fillna("")
 
 
-def diff_files(a, b, *, key: str | None = None) -> DiffReport:
-    da, _, note_a = _read(Path(a))
-    db, _, note_b = _read(Path(b))
-    da, db = _fill(da), _fill(db)
+def _compare_dfs(da: pd.DataFrame, db: pd.DataFrame, key: str | None) -> DiffReport:
     rep = DiffReport()
-    rep.warnings = [n for n in (note_a, note_b) if n]
     rep.added_cols = [c for c in db.columns if c not in da.columns]
     rep.removed_cols = [c for c in da.columns if c not in db.columns]
     common_cols = [c for c in da.columns if c in db.columns]
@@ -209,6 +310,40 @@ def diff_files(a, b, *, key: str | None = None) -> DiffReport:
     return rep
 
 
+def _diff_xlsx_all_sheets(a: Path, b: Path, key: str | None) -> DiffReport:
+    names_a = _xlsx_sheet_names(a)
+    names_b = _xlsx_sheet_names(b)
+    common = [n for n in names_a if n in names_b]
+    rep = DiffReport()
+    rep.added_sheets = [n for n in names_b if n not in names_a]
+    rep.removed_sheets = [n for n in names_a if n not in names_b]
+    for name in common:
+        da = _fill(pd.read_excel(a, sheet_name=name, dtype=str))
+        db = _fill(pd.read_excel(b, sheet_name=name, dtype=str))
+        try:
+            sub = _compare_dfs(da, db, key)
+        except ValueError as e:
+            raise ValueError(f"シート「{name}」: {e}") from e
+        rep.sheet_diffs.append((name, sub))
+    return rep
+
+
+def diff_files(a, b, *, key: str | None = None, sheet: str | None = None) -> DiffReport:
+    a, b = Path(a), Path(b)
+    a_is_xlsx = a.suffix.lower() in (".xlsx", ".xlsm")
+    b_is_xlsx = b.suffix.lower() in (".xlsx", ".xlsm")
+
+    if sheet is None and a_is_xlsx and b_is_xlsx:
+        return _diff_xlsx_all_sheets(a, b, key)
+
+    da, _, note_a = _read(a, sheet=sheet)
+    db, _, note_b = _read(b, sheet=sheet)
+    da, db = _fill(da), _fill(db)
+    rep = _compare_dfs(da, db, key)
+    rep.warnings = [n for n in (note_a, note_b) if n]
+    return rep
+
+
 def main(argv: list[str]) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -216,22 +351,33 @@ def main(argv: list[str]) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p_det = sub.add_parser("detect")
     p_det.add_argument("file")
+    p_sheets = sub.add_parser("sheets")
+    p_sheets.add_argument("file")
     p_cln = sub.add_parser("clean")
     p_cln.add_argument("file")
     p_cln.add_argument("--out")
     p_cln.add_argument("--encoding-out", default="utf-8-sig", choices=["utf-8-sig", "cp932"])
+    p_cln.add_argument("--sheet")
     p_dif = sub.add_parser("diff")
     p_dif.add_argument("file_a")
     p_dif.add_argument("file_b")
     p_dif.add_argument("--key")
+    p_dif.add_argument("--sheet")
     args = ap.parse_args(argv[1:])
     if args.cmd == "detect":
         enc, evidence = detect_encoding(args.file)
         print(f"{enc}\t{evidence}")
+    elif args.cmd == "sheets":
+        names = list_sheets(args.file)
+        if not names:
+            print("(CSV: シートなし)")
+        else:
+            for n in names:
+                print(n)
     elif args.cmd == "clean":
-        print(clean_file(args.file, args.out, encoding_out=args.encoding_out).to_markdown())
+        print(clean_file(args.file, args.out, encoding_out=args.encoding_out, sheet=args.sheet).to_markdown())
     elif args.cmd == "diff":
-        print(diff_files(args.file_a, args.file_b, key=args.key).to_markdown())
+        print(diff_files(args.file_a, args.file_b, key=args.key, sheet=args.sheet).to_markdown())
     return 0
 
 

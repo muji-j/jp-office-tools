@@ -97,15 +97,61 @@ def test_detect_xlsx_is_honest(tmp_path):
     assert enc == "xlsx"
     assert "デコード失敗" not in evidence
 
-def test_clean_xlsx_multisheet_warns(tmp_path):
+def test_clean_xlsx_multisheet_all_processed(tmp_path):
     p = tmp_path / "multi.xlsx"
-    _write_xlsx(p, {"Yosan": [["col"], ["1"]], "Jisseki": [["col"], ["2"]]})
+    _write_xlsx(p, {"Yosan": [["col"], ["１"]], "Jisseki": [["col"], ["２"]]})
     report = jp_excel.clean_file(p)
-    md = report.to_markdown()
-    assert "複数シート" in md and "Yosan" in md
+    names = {s[0] for s in report.sheet_outputs}
+    assert names == {"Yosan", "Jisseki"}
+    for name, path, *_ in report.sheet_outputs:
+        df = pd.read_csv(path, dtype=str)
+        assert df.loc[0, "col"] in ("1", "2")  # 全角→半角 정규화 확인
 
 def test_clean_xlsx_singlesheet_no_warn(tmp_path):
     p = tmp_path / "single.xlsx"
     _write_xlsx(p, {"Only": [["col"], ["1"]]})
-    md = jp_excel.clean_file(p).to_markdown()
+    report = jp_excel.clean_file(p)
+    md = report.to_markdown()
     assert "複数シート" not in md
+    assert report.sheet_outputs == []
+
+def test_list_sheets_xlsx_multi(tmp_path):
+    p = tmp_path / "multi.xlsx"
+    _write_xlsx(p, {"Yosan": [["col"], ["1"]], "Jisseki": [["col"], ["2"]]})
+    assert jp_excel.list_sheets(p) == ["Yosan", "Jisseki"]
+
+def test_list_sheets_csv_empty(tmp_path):
+    f = _write_cp932(tmp_path)
+    assert jp_excel.list_sheets(f) == []
+
+def test_sheets_cli_lists_xlsx_names(tmp_path, capsys):
+    p = tmp_path / "multi.xlsx"
+    _write_xlsx(p, {"Yosan": [["col"], ["1"]], "Jisseki": [["col"], ["2"]]})
+    rc = jp_excel.main(["jp_excel.py", "sheets", str(p)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.splitlines() == ["Yosan", "Jisseki"]
+
+def test_sheets_cli_csv_says_no_sheets(tmp_path, capsys):
+    f = _write_cp932(tmp_path)
+    rc = jp_excel.main(["jp_excel.py", "sheets", str(f)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "CSV" in out and "シートなし" in out
+
+def test_clean_sheet_specific(tmp_path):
+    p = tmp_path / "multi.xlsx"
+    _write_xlsx(p, {"Yosan": [["col"], ["１"]], "Jisseki": [["col"], ["２"]]})
+    report = jp_excel.clean_file(p, sheet="Jisseki")
+    assert Path(report.dst).name == "multi_Jisseki_cleaned.csv"
+    assert report.sheet_outputs == []
+    df = pd.read_csv(report.dst, dtype=str)
+    assert df.loc[0, "col"] == "2"
+
+def test_clean_sheet_name_safe_filename(tmp_path):
+    p = tmp_path / "multi2.xlsx"
+    _write_xlsx(p, {"A|B": [["col"], ["1"]], 'C"D': [["col"], ["2"]]})
+    report = jp_excel.clean_file(p)
+    by_name = {name: Path(path).name for name, path, *_ in report.sheet_outputs}
+    assert by_name["A|B"] == "multi2_A_B_cleaned.csv"
+    assert by_name['C"D'] == "multi2_C_D_cleaned.csv"
