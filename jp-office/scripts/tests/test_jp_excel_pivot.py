@@ -38,3 +38,18 @@ def test_pivot_original_not_overwritten(tmp_path):
     f.write_text("店,金額\n東京,100\n", encoding="utf-8")
     with pytest.raises(ValueError, match="原本"):
         jp_excel.pivot_report(f, index="店", values="金額", out=str(f))
+
+
+def test_pivot_count_text_values(tmp_path):
+    f = tmp_path / "c.csv"
+    f.write_text("店,商品\n東京,A\n東京,B\n大阪,C\n", encoding="utf-8")
+    rep = jp_excel.pivot_report(f, index="店", values="商品", agg="count")
+    # 東京=2件, 大阪=1件, 合計=3件 (텍스트열도 건수로 카운트)
+    import pandas as pd
+    out = pd.read_csv(rep.dst, encoding="utf-8-sig", dtype=str)
+    joined = out.to_string()
+    assert "2" in joined and "1" in joined and "3" in joined
+    # 회귀 방지: 東京 행의 count가 0이 아니라 2건임을 직접 확인
+    tokyo_row = out[out.iloc[:, 0] == "東京"]
+    assert not tokyo_row.empty
+    assert tokyo_row.iloc[0, -1] == "2"

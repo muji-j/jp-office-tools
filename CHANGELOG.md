@@ -6,7 +6,8 @@
 - **jp-excel 集計・可視化**: `/xl-pivot`(クロス集計→表+CSV)、`/xl-chart`(折れ線/棒/円を PNG/HTML、matplotlib・日本語フォント対応)、`columns`(列構造の把握)を追加。`clean --format xlsx`(多シート保存 xlsx 出力)と「疑わしい列」警告(郵便番号・電話の先頭0消失等)を追加。
 - **利用しやすさ(2段導線)**: 列指定が無くても `columns` で構造を把握し集計軸・グラフ種類を提案する簡単経路と、フラグ指定の精密経路の両方を提供。
 - **品質**: 多シート diff `--key` をシート単位で隔離(一部シートにキーが無くても他シートの比較は継続)。
-- 依存追加: `matplotlib`。自動テスト77件パス。
+- **バグ修正**: `xl-pivot --agg count` が値列の型に関わらず数値強制変換していたため、テキスト列（例: 商品名）を件数集計すると全件 NaN となり件数が 0 になる不具合を修正（`count` 集計時は数値変換をスキップ）。
+- 依存追加: `matplotlib`。自動テスト81件パス・1件スキップ。
 
 ## v0.2.1 — 2026-07-12
 - 配布運用の整備（機能変更なし）: README に自動更新（`extraKnownMarketplaces` の `autoUpdate`）の案内を追加、`CHANGELOG.md`・`CONTRIBUTING.md` を新設、`tools/check-sensitive.py`（会社固有・機微情報の静的チェック）＋ pre-commit 連携を追加。

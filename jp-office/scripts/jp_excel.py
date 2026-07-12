@@ -393,8 +393,9 @@ def pivot_report(path, index, values, *, agg: str = "sum", columns=None,
             raise ValueError(
                 f"列 '{c}' が見つかりません。利用可能: {', '.join(map(str, df.columns))}")
     work = df.copy()
-    for v in vals:
-        work[v] = _to_numeric(work[v])
+    if agg != "count":
+        for v in vals:
+            work[v] = _to_numeric(work[v])
     table = pd.pivot_table(work, index=idx, columns=cols, values=vals,
                            aggfunc=agg, margins=True, margins_name="合計")
     dst = Path(out) if out else src.with_name(f"{src.stem}_pivot.csv")
