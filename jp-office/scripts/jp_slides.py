@@ -242,7 +242,78 @@ def _accent_decor(P, slide, theme, *, cover):
         _rect(P, slide, 0.55, 0.0, 0.22, 7.5, second)
 
 
-_SLIDE_DISPATCH = {}  # Task 3/4 で table/image/section を追加
+def _warn(msg):
+    print(f"⚠ {msg}", file=sys.stderr)
+
+
+def _slide_table(P, prs, theme, s):
+    slide = _add_slide(P, prs, theme)
+    _accent_decor(P, slide, theme, cover=False)
+    tb = _textbox(P, slide, _content_left(theme), 1.4, _content_width(theme), 1.0)
+    p = tb.text_frame.paragraphs[0]
+    _apply_font(P, p.add_run(), theme.heading_font, 24, bold=True, color=_rgb(P, theme.text))
+    p.runs[0].text = s.get("headline", "")
+    cols = s.get("columns", []) or []
+    rows = s.get("rows", []) or []
+    if not cols:
+        return slide
+    nrows, ncols = len(rows) + 1, len(cols)
+    gf = slide.shapes.add_table(nrows, ncols, P["Inches"](_content_left(theme)),
+                                P["Inches"](2.6), P["Inches"](_content_width(theme)), P["Inches"](0.5 * nrows))
+    table = gf.table
+    for c, name in enumerate(cols):
+        cell = table.cell(0, c)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = _rgb(P, theme.accent)
+        cell.text = str(name)
+        r0 = cell.text_frame.paragraphs[0].runs[0]
+        _apply_font(P, r0, theme.body_font, 13, bold=True, color=_rgb(P, _on_accent_text(theme)))
+    for r, row in enumerate(rows, start=1):
+        for c in range(ncols):
+            val = str(row[c]) if c < len(row) else ""
+            cell = table.cell(r, c)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = _rgb(P, theme.bg)
+            cell.text = val
+            run = cell.text_frame.paragraphs[0].runs[0]
+            _apply_font(P, run, theme.body_font, 12, color=_rgb(P, theme.text))
+    return slide
+
+
+def _slide_image(P, prs, theme, s):
+    slide = _add_slide(P, prs, theme)
+    _accent_decor(P, slide, theme, cover=False)
+    tb = _textbox(P, slide, _content_left(theme), 1.4, _content_width(theme), 1.0)
+    p = tb.text_frame.paragraphs[0]
+    _apply_font(P, p.add_run(), theme.heading_font, 24, bold=True, color=_rgb(P, theme.text))
+    p.runs[0].text = s.get("headline", "")
+    img = s.get("image")
+    if img and Path(img).exists():
+        slide.shapes.add_picture(img, P["Inches"](_content_left(theme)), P["Inches"](2.5),
+                                 width=P["Inches"](min(_content_width(theme), 8.0)))
+    elif img:
+        _warn(f"画像が見つかりません(スキップ): {img}")
+    cap = s.get("caption")
+    if cap:
+        tb2 = _textbox(P, slide, _content_left(theme), 6.6, _content_width(theme), 0.6)
+        p2 = tb2.text_frame.paragraphs[0]
+        _apply_font(P, p2.add_run(), theme.body_font, 12, color=_rgb(P, theme.text))
+        p2.runs[0].text = str(cap)
+    return slide
+
+
+def _slide_section(P, prs, theme, s):
+    slide = _add_slide(P, prs, theme)
+    _accent_decor(P, slide, theme, cover=True)
+    tb = _textbox(P, slide, 0.9, 3.1, 11.5, 1.4)
+    p = tb.text_frame.paragraphs[0]
+    _apply_font(P, p.add_run(), theme.heading_font, 30, bold=True,
+                color=_rgb(P, theme.accent if not theme.dark else theme.text))
+    p.runs[0].text = s.get("title", "")
+    return slide
+
+
+_SLIDE_DISPATCH = {"table": _slide_table, "image": _slide_image, "section": _slide_section}
 
 
 def render_deck(content: dict, *, out: str | None = None) -> str:
