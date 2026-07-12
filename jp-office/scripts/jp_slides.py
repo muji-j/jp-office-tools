@@ -130,6 +130,20 @@ def _rgb(P, hexstr):
     return P["RGBColor"].from_string(hexstr)
 
 
+def _cell_text(P, cell, text, font, size, *, bold=False, color=None):
+    """セルの段落に必ず1つ run を作ってからテキストを設定する。
+
+    `cell.text = val` は val が空文字列だと run を0個生成し、
+    直後の `runs[0]` 参照で IndexError になるため使わない。
+    セルは既定で空段落を1つ持つので paragraphs[0] は必ず存在し、
+    add_run() は常に run を1つ保証する。
+    """
+    p = cell.text_frame.paragraphs[0]
+    run = p.add_run()
+    run.text = str(text) if text is not None else ""
+    _apply_font(P, run, font, size, bold=bold, color=color)
+
+
 def _new_presentation(P, theme, template=None):
     if template:
         if not Path(template).exists():
@@ -268,24 +282,21 @@ def _slide_table(P, prs, theme, s, template_mode=False):
         return slide
     nrows, ncols = len(rows) + 1, len(cols)
     gf = slide.shapes.add_table(nrows, ncols, P["Inches"](_content_left(theme)),
-                                P["Inches"](2.6), P["Inches"](_content_width(theme)), P["Inches"](0.5 * nrows))
+                                P["Inches"](2.6), P["Inches"](_content_width(theme)),
+                                P["Inches"](min(0.5 * nrows, 4.4)))
     table = gf.table
     for c, name in enumerate(cols):
         cell = table.cell(0, c)
         cell.fill.solid()
         cell.fill.fore_color.rgb = _rgb(P, theme.accent)
-        cell.text = str(name)
-        r0 = cell.text_frame.paragraphs[0].runs[0]
-        _apply_font(P, r0, theme.body_font, 13, bold=True, color=_rgb(P, _on_accent_text(theme)))
+        _cell_text(P, cell, name, theme.body_font, 13, bold=True, color=_rgb(P, _on_accent_text(theme)))
     for r, row in enumerate(rows, start=1):
         for c in range(ncols):
-            val = str(row[c]) if c < len(row) else ""
+            val = row[c] if c < len(row) else ""
             cell = table.cell(r, c)
             cell.fill.solid()
             cell.fill.fore_color.rgb = _rgb(P, theme.bg)
-            cell.text = val
-            run = cell.text_frame.paragraphs[0].runs[0]
-            _apply_font(P, run, theme.body_font, 12, color=_rgb(P, theme.text))
+            _cell_text(P, cell, val, theme.body_font, 12, color=_rgb(P, theme.text))
     return slide
 
 
@@ -298,14 +309,31 @@ def _slide_image(P, prs, theme, s, template_mode=False):
     _apply_font(P, p.add_run(), theme.heading_font, 24, bold=True, color=_rgb(P, theme.text))
     p.runs[0].text = s.get("headline", "")
     img = s.get("image")
+    img_top = 2.5
+    img_bottom = img_top
     if img and Path(img).exists():
-        slide.shapes.add_picture(img, P["Inches"](_content_left(theme)), P["Inches"](2.5),
-                                 width=P["Inches"](min(_content_width(theme), 8.0)))
+        try:
+            from PIL import Image as _PILImage
+            with _PILImage.open(img) as _im:
+                iw, ih = _im.size
+            max_w = min(_content_width(theme), 8.0)
+            max_h = 4.0
+            w = max_w
+            h = w * (ih / iw) if iw else max_h
+            if h > max_h:
+                h = max_h
+                w = h * (iw / ih) if ih else max_w
+            slide.shapes.add_picture(img, P["Inches"](_content_left(theme)), P["Inches"](img_top),
+                                     width=P["Inches"](w), height=P["Inches"](h))
+            img_bottom = img_top + h
+        except Exception:
+            _warn(f"画像の読み込みに失敗しました(スキップ): {img}")
     elif img:
         _warn(f"画像が見つかりません(スキップ): {img}")
     cap = s.get("caption")
     if cap:
-        tb2 = _textbox(P, slide, _content_left(theme), 6.6, _content_width(theme), 0.6)
+        cap_top = min(img_bottom + 0.15, 6.9)
+        tb2 = _textbox(P, slide, _content_left(theme), cap_top, _content_width(theme), 0.5)
         p2 = tb2.text_frame.paragraphs[0]
         _apply_font(P, p2.add_run(), theme.body_font, 12, color=_rgb(P, theme.text))
         p2.runs[0].text = str(cap)
