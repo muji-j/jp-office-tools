@@ -1,6 +1,6 @@
 {
   "name": "jp-office",
   "description": "Japanese office toolkit — Excel/CSV workbench (encoding/normalization/diff), Japanese business documents (議事録/稟議書/敬語メール/スライド構成/翻訳), date utilities (祝日/営業日/和暦), plus /xl-clean /xl-diff /giji /ringi /keigo /jp-office-setup commands. General-purpose, no company-specific content.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": { "name": "muji" }
 }

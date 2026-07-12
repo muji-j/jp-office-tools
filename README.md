@@ -44,7 +44,32 @@ Claude Codeの中で以下を実行します(**GitHub認証不要**の公開マ�
 /plugin install jp-office@jp-office-tools
 ```
 
-(作者がバージョンを上げて公開すると、上記で最新化されます。)
+(作者がバージョンを上げて公開すると、上記で最新化されます。変更内容は `CHANGELOG.md` を参照。)
+
+### 自動更新(おすすめ)
+
+新バージョンを公開したとき、**導入済みの環境が起動時に自動で最新化**されるようにできます(自動更新は各利用者側の設定です)。次のどちらかで有効化します。
+
+- **かんたん**: `/plugin` を開き、**Marketplaces タブ → `jp-office-tools` → 自動更新を有効化**。
+- **設定で一括(自動インストール＋自動更新)**: 各自の `~/.claude/settings.json` に次を追記(既存設定にマージ):
+
+  ```json
+  {
+    "extraKnownMarketplaces": {
+      "jp-office-tools": {
+        "source": { "source": "github", "repo": "muji-j/jp-office-tools" },
+        "autoUpdate": true
+      }
+    },
+    "enabledPlugins": {
+      "jp-office@jp-office-tools": true
+    }
+  }
+  ```
+
+  → これだけで**インストールも自動**になり、以後は起動時に自動更新されます(更新後に `/reload-plugins` の案内が出ることがあります)。
+
+> 注: 公開マーケットプレイスでは配布者から更新を強制できません(自動更新は利用者側の設定)。組織で一括強制する場合は、管理設定(managed settings)に上記と同じ内容を設定します。
 
 ---
 
@@ -59,3 +84,7 @@ Claude Codeの中で以下を実行します(**GitHub認証不要**の公開マ�
 ## ライセンス
 
 MIT License(`LICENSE` 参照)。
+
+## 免責
+
+祝日データはライブラリ(`jpholiday`)に依存し、制度・様式・敬語の作法は改定され得ます(本パッケージは 2026-07 時点)。重要な判断の前に、各社の規程・公式情報で最新を確認してください。実データを扱う際は、所属組織の AI 利用ポリシーに従ってください。
