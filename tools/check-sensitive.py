@@ -12,17 +12,14 @@ pre-commit フック（`.git/hooks/pre-commit`）から `--staged` で呼ばれ�
 認証情報・内部IP）のみを検査する。
 """
 from __future__ import annotations
+import hashlib
 import re
 import subprocess
 import sys
 
 # パターンは断片から組み立てる（この検査スクリプト自身が自明に自己ヒットしないように）。
 # それでも tools/ 配下（本スクリプト等）は走査対象から除外する。
-_U = "shiroku" + "ma275"          # 開発環境の OS ユーザー名
-_D = "shiroku" + "mapower"         # 会社ドメインの一部
 PATTERNS = [
-    (re.compile(_U), "開発環境の OS ユーザー名らしき文字列"),
-    (re.compile(_D), "会社ドメインらしき文字列"),
     (re.compile(r"ポータルレポジトリ|ポータルリポジトリ"), "内部ポータルリポジトリへの言及"),
     (re.compile(r"010_アプリ|Desktop[\\/]個人"), "開発者ローカルの個人パス"),
     (re.compile(r"(?i)(password|passwd|api[_-]?key|secret|access[_-]?token|client[_-]?secret)\s*[:=]\s*[\"'][^\"'\s]{6,}"),
@@ -34,6 +31,28 @@ PATTERNS = [
 SKIP_PREFIXES = ("tools/",)
 # バイナリ・非テキストは対象外
 SKIP_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".pyc", ".zip", ".pdf", ".xlsx", ".xlsm")
+
+# 機微トークン(開発環境ユーザー名・会社ドメイン)は原文をソースに置かず、
+# sha256 ハッシュのみを保持して照合する(原文の再構成を不可能にする)。
+_SENSITIVE_HASHES = {
+    "b6f72a21a780cac81a7d37aa78f34c64d49a2de2aa384a0b9390ddc819c1d7c7":
+        "開発環境の OS ユーザー名らしき文字列",
+    "b0a42971ed8eb10bda3125f8d2a147fb7eb413f07050cdef62bc35d62a567d94":
+        "会社ドメインらしき文字列",
+}
+_HASH_WINDOW_LENS = (12, 14)
+
+
+def _scan_sensitive_hashes(line: str) -> list[str]:
+    norm = re.sub(r"[^a-z0-9]", "", line.lower())
+    found = []
+    for length in _HASH_WINDOW_LENS:
+        for i in range(len(norm) - length + 1):
+            h = hashlib.sha256(norm[i:i + length].encode()).hexdigest()
+            why = _SENSITIVE_HASHES.get(h)
+            if why and why not in found:
+                found.append(why)
+    return found
 
 
 def _staged_files() -> list[str]:
@@ -74,6 +93,8 @@ def scan(files: list[str], staged: bool) -> list[tuple[str, int, str, str]]:
             for rx, why in PATTERNS:
                 if rx.search(line):
                     hits.append((p, i, why, line.strip()[:120]))
+            for why in _scan_sensitive_hashes(line):
+                hits.append((p, i, why, line.strip()[:120]))
     return hits
 
 
