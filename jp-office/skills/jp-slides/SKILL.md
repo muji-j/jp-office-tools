@@ -1,6 +1,6 @@
 ---
 name: jp-slides
-description: 実際の .pptx ファイル(スライド資料)を生成する際に使用 — テーマ・配色・フォント・ブランドテンプレートを指定したプレゼン資料の作成、テーマ一覧・見本ギャラリーの出力。キーワード - スライド作成, pptx, PowerPoint, プレゼン資料, デッキ作成, テーマ, 配色, ブランドテンプレート, ギャラリー, スライドテーマ。
+description: 実際の .pptx ファイル(スライド資料)を生成する際に使用 — 16種のモダンなテーマ(それぞれ固有のデザイン原型)・配色・フォント・ブランドテンプレートを指定したプレゼン資料の作成、KPI・指標を見せる統計(stats)スライド、テーマ一覧・見本ギャラリーの出力。キーワード - スライド作成, pptx, PowerPoint, プレゼン資料, デッキ作成, テーマ, 配色, ブランドテンプレート, ギャラリー, スライドテーマ, モダンデザイン, 統計スライド, KPIスライド, 指標。
 ---
 
 # jp-slides — スライド(.pptx)生成
@@ -28,6 +28,11 @@ description: 実際の .pptx ファイル(スライド資料)を生成する際�
     { "type": "section", "title": "結論" },
     { "type": "message", "headline": "6月の売上は前月比12%増加した",
       "body": ["新規契約が8件成立", "解約はゼロ", "主力商品Aが牽引"] },
+    { "type": "stats", "headline": "主要指標の伸び", "items": [
+      { "value": "182億", "label": "エネルギー事業", "note": "+18%" },
+      { "value": "24億", "label": "SaaS事業", "note": "黒字化" },
+      { "value": "97億", "label": "海外事業", "note": "+4%" }
+    ] },
     { "type": "table", "headline": "案の比較", "columns": ["評価軸", "A案", "B案"],
       "rows": [["コスト", "低", "高"], ["納期", "3週間", "5週間"]] },
     { "type": "image", "headline": "売上推移", "image": "chart.png", "caption": "出典: 社内集計" }
@@ -37,10 +42,10 @@ description: 実際の .pptx ファイル(スライド資料)を生成する際�
 
 - `meta`: `title`/`date`/`author`/`audience`(いずれも任意。表紙・ファイル名の既定に使う)
 - `pattern`: `conclusion`(結論先行型) / `incident`(経緯報告型) / `comparison`(比較検討型)。構成の目安であり、`slides` は自由に組んでよい。
-- `theme`: 内蔵テーマ名(下記16種)。既定は「藍」。
+- `theme`: 内蔵テーマ名(下記16種、それぞれ固有のモダンデザイン原型)。既定は「藍」。
 - `template`: 既存の会社ブランド `.pptx`(社内テンプレート)を土台にする場合のパス。指定時は背景色・装飾の自動描画を行わず、テンプレートのレイアウト・配色をそのまま活かす。
 - `accent`/`font`/`variant`: テーマの部分上書き(下記「カスタマイズ」参照)。
-- `slides[].type`: `cover`(title/subtitle/date/author/submitted_to) / `message`(headline/body[]) / `table`(headline/columns[]/rows[][]) / `image`(headline/image/caption) / `section`(title)。
+- `slides[].type`: `cover`(title/subtitle/date/author/submitted_to) / `message`(headline/body[]) / `stats`(headline/items[]。items は `value`(必須)/`label`(必須)/`note`(任意)を持つオブジェクトの配列。KPI・指標を数字で見せたい場合に使う) / `table`(headline/columns[]/rows[][]) / `image`(headline/image/caption) / `section`(title)。stats の詳細・レイアウト(テーマごとの並べ方)は [references/themes.md](references/themes.md) を参照。
 
 ## 使い方
 
