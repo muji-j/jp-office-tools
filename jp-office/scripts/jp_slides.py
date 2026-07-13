@@ -24,7 +24,7 @@ class Theme:
 
 
 ARCHETYPES = ("minimal-centered", "accent-bar", "header-band", "sidebar", "color-block")
-SLIDE_TYPES = ("cover", "message", "table", "image", "section")
+SLIDE_TYPES = ("cover", "message", "stats", "table", "image", "section")
 
 FONT_PAIRINGS = {
     "yu-gothic": ("游ゴシック", "游ゴシック"),
@@ -54,6 +54,92 @@ _THEME_ROWS = [
 ]
 THEMES = {r[0]: Theme(*r) for r in _THEME_ROWS}
 
+# 16テーマのモダンデザインプロファイル(SP3 承認済みプロトタイプ design_ref/sp3_themes.py
+# の各テーマ関数の冒頭パレット変数から抽出)。純粋なデータ構造で python-pptx は不要。
+# layout: message/stats の配置アーキタイプ、bgsig: シグネチャ背景ディスパッチキー、
+# kicker: 見出し上のラベル装飾、bullet: 箇条書き装飾、card_style: カードの見た目。
+THEME_PROFILE_LAYOUTS = ("list", "bento", "cards", "poster")
+THEME_PROFILE_BGSIGS = (
+    "airyrule", "mono", "rail", "panel", "diagonal", "band", "lines", "circle",
+    "ghostnum", "colorblock", "glassdark", "horizon", "wave", "bottomband",
+    "frame", "spine",
+)
+THEME_PROFILE_KICKERS = ("pill", "pill_outline", "underline", "plain")
+THEME_PROFILE_BULLETS = ("square", "dash", "chevron", "ring", "number", "tick")
+THEME_PROFILE_CARD_STYLES = ("plain", "topstrip", "leftbar", "glass", "outline", "rounded")
+
+_THEME_PROFILE_ROWS = [
+    # key, family, dark, bg, ink, accent, accent2, muted, card, rule, shadow, glow,
+    # on_accent, heading_font, body_font, layout, bgsig, kicker, bullet, card_style
+    ("霞", "ミニマル", False, "FAFBFC", "2B2B2B", "6B8CAE", None, "8A94A0",
+     "FFFFFF", "E2E6EA", "ECECEC", None, "FFFFFF", "游ゴシック", "游ゴシック",
+     "list", "airyrule", "underline", "tick", "plain"),
+    ("白磁", "ミニマル", False, "FFFFFF", "111111", "888888", None, "8A8A8A",
+     "FFFFFF", "DDDDDD", "ECECEC", None, "FFFFFF", "BIZ UDPGothic", "BIZ UDPGothic",
+     "poster", "mono", "pill_outline", "dash", "plain"),
+    ("石板", "ミニマル", False, "F4F5F6", "33393F", "5A6B7B", None, "6E7A85",
+     "FFFFFF", "D3D8DC", "E1E4E7", None, "FFFFFF", "游ゴシック", "游ゴシック",
+     "bento", "rail", "plain", "square", "plain"),
+    ("藍", "コーポレート", False, "F5F7FB", "1B2A44", "2A4B8D", None, "667085",
+     "FFFFFF", "DCE2EC", "DDE3EE", None, "FFFFFF", "游ゴシック", "游ゴシック",
+     "bento", "panel", "pill", "square", "plain"),
+    ("常磐", "コーポレート", False, "FFFFFF", "14352A", "1E6E4B", None, "5E6E64",
+     "FFFFFF", "D6E4DC", "DBEAE2", None, "FFFFFF", "BIZ UDPGothic", "BIZ UDPGothic",
+     "cards", "diagonal", "pill", "chevron", "topstrip"),
+    ("鉄紺", "コーポレート", False, "FFFFFF", "222222", "1B2A4A", "35507F", "5A6473",
+     "F4F6FA", "D6DCE6", "E3E7EE", None, "FFFFFF", "游ゴシック", "游ゴシック",
+     "bento", "band", "pill", "square", "leftbar"),
+    ("青碧", "コーポレート", False, "FFFFFF", "123B3B", "148C8C", None, "5E7373",
+     "FFFFFF", "D2E6E6", "D6E6E6", None, "FFFFFF", "BIZ UDPGothic", "BIZ UDPGothic",
+     "cards", "lines", "pill", "square", "leftbar"),
+    ("朱", "モダン・ボールド", False, "FFFFFF", "1A1A1A", "E24A2B", "B5341C", "666666",
+     "FFFFFF", "F0D6CE", "FCE9E4", None, "FFFFFF", "游ゴシック", "游ゴシック",
+     "poster", "circle", "pill", "chevron", "plain"),
+    ("山吹", "モダン・ボールド", False, "FFFDF7", "2A2417", "D99A1C", None, "8A8168",
+     "FFFFFF", "EFE2C6", "EEE3C9", None, "FFFFFF", "游ゴシック", "游ゴシック",
+     "cards", "ghostnum", "pill", "number", "plain"),
+    ("彩層", "モダン・ボールド", False, "FFFFFF", "222222", "2D3E78", "F0A500", "6A6A6A",
+     "FFFFFF", "DDDDDD", "E5E5EA", None, "FFFFFF", "BIZ UDPGothic", "BIZ UDPGothic",
+     "cards", "colorblock", "pill", "square", "plain"),
+    ("墨", "ダーク", True, "111318", "F2F5F9", "45D0C5", None, "8A93A3",
+     "1B1E26", "262A34", "0B0D11", "45D0C5", "0B1418", "BIZ UDPGothic", "BIZ UDPGothic",
+     "bento", "glassdark", "pill_outline", "square", "glass"),
+    ("藍鉄", "ダーク", True, "0F1626", "EAF0FC", "7FB2FF", None, "93A0BC",
+     "16223A", "1B2740", "080D18", "7FB2FF", "0B1420", "游ゴシック", "游ゴシック",
+     "bento", "horizon", "pill_outline", "ring", "glass"),
+    ("桜", "ソフト・ウォーム", False, "FFF8FA", "3A2E33", "E39AA6", "6B4A52", "8A7B80",
+     "FFFFFF", "F0DEE2", "F1DCE2", None, "FFFFFF", "游ゴシック", "游ゴシック",
+     "cards", "wave", "pill", "ring", "topstrip"),
+    ("亜麻", "ソフト・ウォーム", False, "F5F0E6", "4A423A", "C56A4A", None, "8A7E6E",
+     "FFFDFA", "F3E4D8", "E4DAC8", None, "FFF6EE", "游ゴシック", "游ゴシック",
+     "cards", "bottomband", "pill", "ring", "rounded"),
+    ("藤", "ソフト・ウォーム", False, "FAF8FC", "322A3E", "8E7CC3", None, "7A7186",
+     "FFFFFF", "E7E0F0", "F1EDF7", None, "FFFFFF", "游明朝", "游ゴシック",
+     "list", "frame", "plain", "tick", "plain"),
+    ("明朝", "タイポグラフィ", False, "FFFFFF", "1E1E1E", "B0A0A0", None, "6B6B6B",
+     "FFFFFF", "B0A0A0", "E5E0E0", None, "FFFFFF", "游明朝", "游ゴシック",
+     "list", "spine", "plain", "tick", "plain"),
+]
+
+_THEME_PROFILE_KEYS = (
+    "key", "family", "dark", "bg", "ink", "accent", "accent2", "muted",
+    "card", "rule", "shadow", "glow", "on_accent", "heading_font", "body_font",
+    "layout", "bgsig", "kicker", "bullet", "card_style",
+)
+
+THEME_PROFILES: dict[str, dict] = {
+    row[0]: dict(zip(_THEME_PROFILE_KEYS, row)) for row in _THEME_PROFILE_ROWS
+}
+
+
+def list_theme_profiles() -> list[str]:
+    """16プロファイルを `key(family) layout/bgsig` 形式で一覧化する。"""
+    lines = []
+    for key, prof in THEME_PROFILES.items():
+        lines.append(f"{key}({prof['family']})  {prof['layout']}/{prof['bgsig']}"
+                      f"  kicker={prof['kicker']} bullet={prof['bullet']} card={prof['card_style']}")
+    return lines
+
 
 def list_themes() -> list[str]:
     lines = []
@@ -81,6 +167,15 @@ def parse_content(obj: dict) -> dict:
             raise ValueError(f"slides[{i}] に type がありません。")
         if s["type"] not in SLIDE_TYPES:
             raise ValueError(f"slides[{i}]: 未知のスライド種別(type) {s['type']!r}(有効: {'・'.join(SLIDE_TYPES)})")
+        if s["type"] == "stats":
+            items = s.get("items")
+            if not isinstance(items, list) or not items:
+                raise ValueError(f"slides[{i}]: stats には items(リスト)が必要です。")
+            for j, it in enumerate(items):
+                if not isinstance(it, dict):
+                    raise ValueError(f"slides[{i}].items[{j}] はオブジェクト(dict)である必要があります。")
+                if "value" not in it or "label" not in it:
+                    raise ValueError(f"slides[{i}].items[{j}] には value と label が必要です。")
     return {
         "meta": obj.get("meta", {}),
         "theme": theme,
@@ -481,7 +576,7 @@ def main(argv: list[str]) -> int:
         pass
     args = _build_argparser().parse_args(argv[1:])
     if args.cmd == "themes":
-        print("\n".join(list_themes()))
+        print("\n".join(list_theme_profiles()))
         return 0
     if args.cmd == "build":
         obj = json.loads(Path(args.content).read_text(encoding="utf-8"))
