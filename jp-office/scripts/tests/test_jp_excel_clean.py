@@ -16,7 +16,7 @@ def test_detect_cp932(tmp_path):
     f = _write_cp932(tmp_path)
     enc, evidence = jp_excel.detect_encoding(f)
     assert enc == "cp932"
-    assert evidence  # 판별 근거 문자열이 비어있지 않음
+    assert evidence  # 判定根拠の文字列が空でない
 
 def test_detect_utf8_bom(tmp_path):
     f = tmp_path / "a.csv"
@@ -27,7 +27,7 @@ def test_clean_writes_copy_not_original(tmp_path):
     f = _write_cp932(tmp_path)
     before = f.read_bytes()
     report = jp_excel.clean_file(f)
-    assert f.read_bytes() == before               # 원본 불변
+    assert f.read_bytes() == before               # 原本は不変
     assert Path(report.dst).name == "sales_cleaned.csv"
     assert Path(report.dst).exists()
 
@@ -35,10 +35,10 @@ def test_clean_normalizes(tmp_path):
     f = _write_cp932(tmp_path)
     report = jp_excel.clean_file(f)
     df = pd.read_csv(report.dst, dtype=str)
-    assert df.loc[0, "数量"] == "123"             # 全角숫자 → 반각 (NFKC)
+    assert df.loc[0, "数量"] == "123"             # 全角数字 → 半角 (NFKC)
     assert df.loc[0, "日付"] == "2024-04-01"      # 和暦 → ISO
-    assert df.loc[1, "日付"] == "2024-05-10"      # 약기 和暦 → ISO
-    assert df.loc[0, "備考"] == "余白あり"          # 전후 공백 제거
+    assert df.loc[1, "日付"] == "2024-05-10"      # 略記 和暦 → ISO
+    assert df.loc[0, "備考"] == "余白あり"          # 前後の空白除去
     assert df.loc[1, "備考"] == "ハンカクカナ"       # 半角カナ → 全角 (NFKC)
     assert report.cells_nfkc >= 2 and report.cells_wareki == 2 and report.cells_stripped >= 1
 
@@ -105,7 +105,7 @@ def test_clean_xlsx_multisheet_all_processed(tmp_path):
     assert names == {"Yosan", "Jisseki"}
     for name, path, *_ in report.sheet_outputs:
         df = pd.read_csv(path, dtype=str)
-        assert df.loc[0, "col"] in ("1", "2")  # 全角→半角 정규화 확인
+        assert df.loc[0, "col"] in ("1", "2")  # 全角→半角 正規化を確認
 
 def test_clean_xlsx_singlesheet_no_warn(tmp_path):
     p = tmp_path / "single.xlsx"
@@ -161,11 +161,11 @@ def test_clean_sheet_name_collision_no_data_loss(tmp_path):
     _write_xlsx(p, {"A_B": [["col"], ["1"]], "A|B": [["col"], ["2"]]})
     report = jp_excel.clean_file(p)
     paths = [s[1] for s in report.sheet_outputs]
-    assert len(set(paths)) == 2  # 두 시트가 서로 다른 파일로
+    assert len(set(paths)) == 2  # 二つのシートがそれぞれ別ファイルに
     vals = set()
     for _, path, *_ in report.sheet_outputs:
         vals.add(pd.read_csv(path, dtype=str).loc[0, "col"])
-    assert vals == {"1", "2"}  # 두 시트 데이터 모두 보존
+    assert vals == {"1", "2"}  # 二つのシートのデータがどちらも保持される
 
 
 def test_clean_format_xlsx_from_csv(tmp_path):
@@ -175,7 +175,7 @@ def test_clean_format_xlsx_from_csv(tmp_path):
     import pandas as pd
     assert Path(rep.dst).suffix == ".xlsx" and Path(rep.dst).exists()
     df = pd.read_excel(rep.dst, dtype=str)
-    assert df.loc[0, "列"] == "123"  # NFKC 정규화
+    assert df.loc[0, "列"] == "123"  # NFKC 正規化
 
 
 def test_clean_format_xlsx_multisheet(tmp_path):
@@ -192,7 +192,7 @@ def test_clean_format_xlsx_multisheet(tmp_path):
 def test_clean_format_csv_still_default(tmp_path):
     f = tmp_path / "d.csv"
     f.write_text("列\n１２３\n", encoding="utf-8")
-    rep = jp_excel.clean_file(f)  # 기본 csv
+    rep = jp_excel.clean_file(f)  # デフォルト csv
     assert Path(rep.dst).suffix == ".csv"
 
 
@@ -221,5 +221,5 @@ def test_phone_zenkaku_zero_no_false_positive(tmp_path):
 def test_clean_xlsx_multisheet_csv_warnings(tmp_path):
     p = tmp_path / "m.xlsx"
     _write_xlsx(p, {"S1": [["氏名", "郵便番号"], ["佐藤", "600001"]], "S2": [["col"], ["x"]]})
-    rep = jp_excel.clean_file(p)  # 기본 csv, 다중시트 → _clean_xlsx_all_sheets 경로
+    rep = jp_excel.clean_file(p)  # デフォルト csv、複数シート → _clean_xlsx_all_sheets 経路
     assert any("郵便番号" in w for w in rep.column_warnings)

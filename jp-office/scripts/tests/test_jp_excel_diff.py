@@ -29,7 +29,7 @@ def test_diff_positional(tmp_path):
 
 def test_diff_markdown(tmp_path):
     md = jp_excel.diff_files(*_pair(tmp_path), key="ID").to_markdown()
-    assert "150" in md and "田中" not in md.split("追加列")[0]  # 변경표에 추가행 내용이 섞이지 않음
+    assert "150" in md and "田中" not in md.split("追加列")[0]  # 変更表に追加行の内容が混ざらない
 
 def test_diff_key_duplicates_rejected(tmp_path):
     a = tmp_path / "a.csv"
@@ -91,7 +91,7 @@ def test_diff_multisheet_with_key(tmp_path):
 def test_diff_sheet_isolation(tmp_path):
     a = tmp_path / "a.xlsx"
     b = tmp_path / "b.xlsx"
-    # Sheet1: ID 키 정상 / Notes: ID 열 없음(키 불가)
+    # Sheet1: ID キー正常 / Notes: ID列なし(キー不可)
     _write_xlsx(a, {"Sheet1": [["ID", "値"], ["1", "a"]], "Notes": [["メモ"], ["x"]]})
     _write_xlsx(b, {"Sheet1": [["ID", "値"], ["1", "b"]], "Notes": [["メモ"], ["y"]]})
     rep = jp_excel.diff_files(a, b, key="ID")

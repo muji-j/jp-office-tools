@@ -7,24 +7,24 @@ def test_is_holiday_ganjitsu():
     assert jp_dates.is_holiday(date(2026, 1, 1)) is not None  # 元日
 
 def test_is_holiday_furikae():
-    # 2026-05-03(憲法記念日)이 일요일 → 5/6이 振替休日
+    # 2026-05-03(憲法記念日)が日曜日 → 5/6が振替休日
     assert jp_dates.is_holiday(date(2026, 5, 6)) is not None
 
 def test_is_holiday_weekday_none():
-    assert jp_dates.is_holiday(date(2026, 7, 10)) is None  # 평일 금요일
+    assert jp_dates.is_holiday(date(2026, 7, 10)) is None  # 平日の金曜日
 
 def test_add_business_days_over_weekend():
-    assert jp_dates.add_business_days(date(2026, 7, 10), 1) == date(2026, 7, 13)  # 금→월
+    assert jp_dates.add_business_days(date(2026, 7, 10), 1) == date(2026, 7, 13)  # 金→月
 
 def test_add_business_days_over_holiday():
-    # 2026-07-20(월)은 海の日 → 금요일+1영업일 = 화요일
+    # 2026-07-20(月)は海の日 → 金曜日+1営業日 = 火曜日
     assert jp_dates.add_business_days(date(2026, 7, 17), 1) == date(2026, 7, 21)
 
 def test_add_business_days_negative():
     assert jp_dates.add_business_days(date(2026, 7, 13), -1) == date(2026, 7, 10)
 
 def test_add_business_days_yearend():
-    # 12/29~1/3 제외 옵션: 2026-12-28(월)+1 → 2027-01-04(월)
+    # 12/29~1/3 除外オプション: 2026-12-28(月)+1 → 2027-01-04(月)
     assert jp_dates.add_business_days(date(2026, 12, 28), 1, exclude_yearend=True) == date(2027, 1, 4)
 
 def test_wareki_full():

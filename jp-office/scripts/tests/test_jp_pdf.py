@@ -28,7 +28,7 @@ def test_extract_page_range(sample_pdf):
 
 def test_no_text_error(tmp_path):
     pdf = FPDF()
-    pdf.add_page()  # 텍스트 없는 페이지
+    pdf.add_page()  # テキストのないページ
     p = tmp_path / "blank.pdf"
     pdf.output(str(p))
     with pytest.raises(jp_pdf.NoTextError):
