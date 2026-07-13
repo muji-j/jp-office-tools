@@ -265,7 +265,8 @@ def card_topstrip(s, x, y, w, h, body, strip, shadow=None, radius=0.06, sh_h=0.1
 
 def card_leftbar(s, x, y, w, h, body, bar, shadow=None, radius=0.06):
     card_plain(s, x, y, w, h, body, shadow=shadow, radius=radius)
-    rect(s, x + 0.28, y + 0.3, 0.1, h - 0.6, fill=bar, shape=RR, radius=0.5)
+    # バーはカード左端寄せ(x+0.14〜0.22)。本文は x+0.3 以降に置かれるため重ならない。
+    rect(s, x + 0.14, y + 0.3, 0.08, h - 0.6, fill=bar, shape=RR, radius=0.5)
 
 
 def card_outline(s, x, y, w, h, line, lw=1.25, radius=0.06, fill=None, alpha=None):
@@ -449,8 +450,9 @@ def _bg_bottomband(slide, prof, variant):
     """亜麻(ama) — 下部の波/バンド。"""
     terra = prof["accent"]
     if variant == "cover":
-        wave(slide, 0, SW, 5.3, 0.45, 1.1, terra, alpha=88)
-        wave(slide, 0, SW, 5.7, 0.35, 1.5, terra, alpha=55)
+        # cover のメタ文字(〜5.9in)に波が被らないよう、下部に寄せて描く。
+        wave(slide, 0, SW, 6.5, 0.3, 1.1, terra, alpha=88)
+        wave(slide, 0, SW, 6.8, 0.26, 1.5, terra, alpha=55)
     elif variant == "body":
         rect(slide, 0, 6.85, SW, 0.65, fill=terra)
     elif variant == "section":
@@ -460,9 +462,9 @@ def _bg_bottomband(slide, prof, variant):
 def _bg_frame(slide, prof, variant):
     """藤(fuji) — 全周ヘアラインフレーム。section は二重フレーム。"""
     wis = prof["accent"]
-    rect(slide, 0.35, 0.35, SW - 0.7, SH - 0.7, line=wis, lw=0.75, lalpha=60)
+    rect(slide, 0.35, 0.35, SW - 0.7, SH - 0.7, line=wis, lw=1.25, lalpha=100)
     if variant == "section":
-        rect(slide, 0.6, 0.6, SW - 1.2, SH - 1.2, line=wis, lw=0.5, lalpha=40)
+        rect(slide, 0.6, 0.6, SW - 1.2, SH - 1.2, line=wis, lw=0.75, lalpha=55)
 
 
 def _bg_spine(slide, prof, variant):

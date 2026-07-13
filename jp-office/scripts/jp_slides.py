@@ -75,7 +75,7 @@ _THEME_PROFILE_ROWS = [
      "FFFDFA", "F3E4D8", "E4DAC8", None, "FFF6EE", "游ゴシック", "游ゴシック",
      "cards", "bottomband", "pill", "ring", "rounded"),
     ("藤", "ソフト・ウォーム", False, "FAF8FC", "322A3E", "8E7CC3", None, "7A7186",
-     "FFFFFF", "E7E0F0", "F1EDF7", None, "FFFFFF", "游明朝", "游ゴシック",
+     "FFFFFF", "BCA9DB", "F1EDF7", None, "FFFFFF", "游明朝", "游ゴシック",
      "list", "frame", "plain", "tick", "plain"),
     ("明朝", "タイポグラフィ", False, "FFFFFF", "1E1E1E", "B0A0A0", None, "6B6B6B",
      "FFFFFF", "B0A0A0", "E5E0E0", None, "FFFFFF", "游明朝", "游ゴシック",
