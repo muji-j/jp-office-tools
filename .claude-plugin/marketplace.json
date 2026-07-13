@@ -3,13 +3,13 @@
   "owner": { "name": "muji" },
   "metadata": {
     "description": "日本の業務環境向け 汎用オフィスツール(Excel/CSV・ビジネス文書・メール・スライド生成・日付)マーケットプレイス",
-    "version": "0.6.0"
+    "version": "0.7.0"
   },
   "plugins": [
     {
       "name": "jp-office",
       "source": "./jp-office",
-      "description": "Japanese office toolkit — Excel/CSV workbench (encoding/normalization/diff/pivot/chart), Japanese business documents (議事録/稟議書/メール敬語添削/スライド構成/翻訳), business email drafting/reply/scheduling (jp-mail), presentation slide generation (jp-slides: 16 modern-theme .pptx visual engine with stats/KPI slides, brand templates), date utilities (祝日/営業日/和暦). General-purpose, no company-specific content."
+      "description": "Japanese office toolkit — Excel/CSV workbench (encoding/normalization/diff/pivot/chart), Japanese business documents (議事録/稟議書/メール敬語添削/スライド構成/翻訳/PDF表抽出/表記ゆれ検出・用語集), business email drafting/reply/scheduling (jp-mail), presentation slide generation (jp-slides: 16 modern-theme .pptx visual engine with stats/KPI slides, brand templates), date utilities (祝日/営業日/和暦). General-purpose, no company-specific content."
     }
   ]
 }
