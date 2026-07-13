@@ -4,6 +4,7 @@ import pytest
 from fpdf import FPDF
 
 import jp_pdf
+from jp_office_common import run_cli
 
 
 @pytest.fixture
@@ -118,7 +119,9 @@ def test_ocr_roundtrip(sample_pdf):
     assert "--- p.2 (OCR) ---" in text
 
 def test_extract_cli_ocr_unavailable_prints_clean_message_no_traceback(sample_pdf, capsys):
-    rc = jp_pdf.main(["jp_pdf.py", "extract", str(sample_pdf), "--ocr"])
+    # T5: OcrUnavailableError は main() 内で捕捉せず run_cli に委譲するようになったため、
+    # main() を直接呼ぶとその場で例外送出される。CLI 経路(run_cli 越し)で検証する。
+    rc = run_cli(jp_pdf.main, ["jp_pdf.py", "extract", str(sample_pdf), "--ocr"])
     assert rc != 0
     err = capsys.readouterr().err
     assert "tesseract" in err

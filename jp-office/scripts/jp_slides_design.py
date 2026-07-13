@@ -838,6 +838,9 @@ def render_message(prs, prof, headline, body, *, template_mode=False):
     _kicker(s, prof, lay["x"], lay["ky"], 2.2, 0.42, "POINT")
     text(s, lay["x"], lay["hy"], lay["w"], 1.0,
          [[R(str(headline), prof["heading_font"], 30, prof["ink"], True)]], ls=1.05)
+    if isinstance(body, str):
+        # 文字列を1文字ずつ箇条書きに分解する事故を防ぐ(単一項目として扱う)。
+        body = [body]
     items = [str(b) for b in (body or []) if b is not None and str(b) != ""]
     if not items:
         return s
@@ -887,6 +890,12 @@ def render_table(prs, prof, headline, columns, rows, *, template_mode=False):
     _kicker(s, prof, lay["x"], lay["ky"], 2.2, 0.42, "TABLE")
     text(s, lay["x"], lay["hy"], lay["w"], 1.0,
          [[R(str(headline), prof["heading_font"], 30, prof["ink"], True)]], ls=1.05)
+    if isinstance(columns, str):
+        # 文字列を1文字ずつの列に分解する事故を防ぐ(単一列として扱う)。
+        columns = [columns]
+    if isinstance(rows, str):
+        # 文字列は行データとして解釈できないため無視する(空行扱い)。
+        rows = []
     columns = list(columns or [])
     rows = list(rows or [])
     if not columns:

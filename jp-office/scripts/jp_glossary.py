@@ -6,7 +6,7 @@ import sys
 import unicodedata
 from collections import Counter
 
-from jp_office_common import read_text_auto
+from jp_office_common import read_text_auto, run_cli
 
 _TOKEN = re.compile(r"[ァ-ヶ][ァ-ヶー]*|[Ａ-Ｚａ-ｚA-Za-z0-9０-９]+|[一-龠々][一-龠々ぁ-ん]{0,11}")
 
@@ -72,4 +72,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    raise SystemExit(run_cli(main, sys.argv))

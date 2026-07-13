@@ -8,16 +8,18 @@ from pathlib import Path
 import pdfplumber
 import pypdfium2
 
+from jp_office_common import JpOfficeError, run_cli
 
-class NoTextError(Exception):
+
+class NoTextError(JpOfficeError):
     """テキスト層が存在しない(スキャンPDFの可能性)。"""
 
 
-class PageRangeError(Exception):
+class PageRangeError(JpOfficeError):
     """指定されたページ番号が不正、または範囲外。"""
 
 
-class OcrUnavailableError(Exception):
+class OcrUnavailableError(JpOfficeError):
     """tesseract が利用できない(未インストール)場合に送出。"""
 
 
@@ -210,31 +212,27 @@ def main(argv: list[str]) -> int:
     p_tbl.add_argument("--format", default="md", choices=["md", "csv", "xlsx"])
     p_tbl.add_argument("--out")
     args = ap.parse_args(argv[1:])
-    try:
-        if args.cmd == "extract":
-            if args.ocr:
-                print(ocr_text(args.file, pages=args.pages))
-            else:
-                print(extract_text(args.file, args.pages))
-        elif args.cmd == "render":
-            for saved_path in render_pages(
-                    args.file, out_dir=args.out_dir, pages=args.pages, scale=args.scale):
-                print(saved_path)
-        elif args.cmd == "extract-table":
-            tables = extract_tables(args.file, pages=args.pages)
-            if args.format == "md":
-                print(tables_to_markdown(tables))
-            else:
-                saved = tables_to_files(tables, args.out, args.format)
-                if not saved:
-                    print("(表が見つかりませんでした)", file=sys.stderr)
-                for p in saved:
-                    print(p)
-        return 0
-    except OcrUnavailableError as e:
-        print(str(e), file=sys.stderr)
-        return 1
+    if args.cmd == "extract":
+        if args.ocr:
+            print(ocr_text(args.file, pages=args.pages))
+        else:
+            print(extract_text(args.file, args.pages))
+    elif args.cmd == "render":
+        for saved_path in render_pages(
+                args.file, out_dir=args.out_dir, pages=args.pages, scale=args.scale):
+            print(saved_path)
+    elif args.cmd == "extract-table":
+        tables = extract_tables(args.file, pages=args.pages)
+        if args.format == "md":
+            print(tables_to_markdown(tables))
+        else:
+            saved = tables_to_files(tables, args.out, args.format)
+            if not saved:
+                print("(表が見つかりませんでした)", file=sys.stderr)
+            for p in saved:
+                print(p)
+    return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    raise SystemExit(run_cli(main, sys.argv))

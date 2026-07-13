@@ -15,6 +15,7 @@ from jp_office_common import (
     UnsupportedFormatError,
     detect_encoding as _detect_encoding,
     is_xlsx,
+    run_cli,
 )
 
 ROW_GUARD = 500_000
@@ -705,4 +706,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    raise SystemExit(run_cli(main, sys.argv))

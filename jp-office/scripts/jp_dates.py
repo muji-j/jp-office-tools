@@ -6,6 +6,8 @@ from datetime import date, timedelta
 
 import jpholiday
 
+from jp_office_common import run_cli
+
 ERA_STARTS = {"明治": 1868, "大正": 1912, "昭和": 1926, "平成": 1989, "令和": 2019}
 ERA_ABBREV = {"M": "明治", "T": "大正", "S": "昭和", "H": "平成", "R": "令和"}
 # 元号の切替日(この日以降が新元号)
@@ -104,4 +106,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    raise SystemExit(run_cli(main, sys.argv))

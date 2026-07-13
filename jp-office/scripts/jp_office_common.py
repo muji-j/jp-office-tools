@@ -48,6 +48,6 @@ def run_cli(main_fn, argv) -> int:
         print(f"ファイルが見つかりません: {name}".rstrip(), file=sys.stderr)
     except JpOfficeError as e:
         print(str(e), file=sys.stderr)
-    except (ValueError, OSError) as e:
+    except (ValueError, OSError, RuntimeError) as e:
         print(f"エラー: {e}", file=sys.stderr)
     return 1

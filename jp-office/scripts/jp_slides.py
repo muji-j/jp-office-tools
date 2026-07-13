@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+from jp_office_common import run_cli
+
 
 SLIDE_TYPES = ("cover", "message", "stats", "table", "image", "section")
 
@@ -352,4 +354,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    raise SystemExit(run_cli(main, sys.argv))
