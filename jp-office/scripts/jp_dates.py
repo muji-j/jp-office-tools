@@ -1,4 +1,5 @@
 """jp-office: 日本の祝日・営業日・和暦・年度ユーティリティ(読み取り専用)."""
+import argparse
 import re
 import sys
 from datetime import date, timedelta
@@ -77,23 +78,28 @@ def fiscal_year(d: date) -> int:
 def main(argv: list[str]) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    if len(argv) < 2:
-        print("usage: jp_dates.py holiday|addbiz|wareki|fy ...")
-        return 1
-    cmd = argv[1]
-    if cmd == "holiday":
-        name = is_holiday(date.fromisoformat(argv[2]))
+    ap = argparse.ArgumentParser(prog="jp_dates.py")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p_hol = sub.add_parser("holiday")
+    p_hol.add_argument("date")
+    p_add = sub.add_parser("addbiz")
+    p_add.add_argument("date")
+    p_add.add_argument("n", type=int)
+    p_add.add_argument("--exclude-yearend", action="store_true")
+    p_war = sub.add_parser("wareki")
+    p_war.add_argument("value")
+    p_fy = sub.add_parser("fy")
+    p_fy.add_argument("date")
+    args = ap.parse_args(argv[1:])
+    if args.cmd == "holiday":
+        name = is_holiday(date.fromisoformat(args.date))
         print(name or "祝日ではありません")
-    elif cmd == "addbiz":
-        opts = "--exclude-yearend" in argv
-        print(add_business_days(date.fromisoformat(argv[2]), int(argv[3]), exclude_yearend=opts))
-    elif cmd == "wareki":
-        print(wareki_to_iso(argv[2]) or "和暦として解釈できません")
-    elif cmd == "fy":
-        print(fiscal_year(date.fromisoformat(argv[2])))
-    else:
-        print(f"unknown command: {cmd}")
-        return 1
+    elif args.cmd == "addbiz":
+        print(add_business_days(date.fromisoformat(args.date), args.n, exclude_yearend=args.exclude_yearend))
+    elif args.cmd == "wareki":
+        print(wareki_to_iso(args.value) or "和暦として解釈できません")
+    elif args.cmd == "fy":
+        print(fiscal_year(date.fromisoformat(args.date)))
     return 0
 
 
