@@ -58,6 +58,57 @@ def extract_text(path, pages: str | None = None) -> str:
     return "\n\n".join(selected)
 
 
+def _normalize_rows(rows):
+    """表セルの None を "" に正規化し、文字列化して前後空白を除去する。"""
+    return [["" if c is None else str(c).strip() for c in row] for row in rows]
+
+
+def extract_tables(path, pages: str | None = None) -> list[dict]:
+    """PDF の対象ページから表を抽出する。各要素は {"page","index","rows"}。表が無ければ []。"""
+    with pdfplumber.open(path) as pdf:
+        total = len(pdf.pages)
+        targets = _parse_pages(pages, total)
+        results = []
+        for n in targets:
+            for i, tbl in enumerate(pdf.pages[n - 1].extract_tables(), 1):
+                rows = _normalize_rows(tbl)
+                if any(any(c for c in row) for row in rows):
+                    results.append({"page": n, "index": i, "rows": rows})
+    return results
+
+
+def _rows_to_markdown(rows) -> str:
+    """表の行リストをマークダウン表(パイプエスケープ・列数パディング済み)に変換する。"""
+    def esc(c):
+        return c.replace("|", "\\|").replace("\n", " ")
+
+    ncol = max((len(r) for r in rows), default=0)
+    if ncol == 0:
+        return ""
+
+    def pad(r):
+        return r + [""] * (ncol - len(r))
+
+    lines = ["| " + " | ".join(esc(c) for c in pad(rows[0])) + " |",
+             "| " + " | ".join(["---"] * ncol) + " |"]
+    for r in rows[1:]:
+        lines.append("| " + " | ".join(esc(c) for c in pad(r)) + " |")
+    return "\n".join(lines)
+
+
+def tables_to_markdown(tables) -> str:
+    """抽出済みの表リストをマークダウンに変換する。表が無ければ案内文を返す。"""
+    if not tables:
+        return "(表が見つかりませんでした)"
+    return "\n\n".join(f"### p.{t['page']} 表{t['index']}\n\n{_rows_to_markdown(t['rows'])}"
+                        for t in tables)
+
+
+def tables_to_files(tables, out, fmt: str):
+    """抽出済みの表を csv/xlsx ファイルへ書き出す(後続タスクで実装)。"""
+    raise NotImplementedError("csv/xlsx は後続タスクで実装します。")
+
+
 def render_pages(path, out_dir=None, pages: str | None = None, scale: float = 2.0) -> list[str]:
     """PDF の対象ページを PNG に描画して保存し、保存先パスのリストを返す(原本は変更しない)。"""
     path = Path(path)
@@ -124,6 +175,11 @@ def main(argv: list[str]) -> int:
     p_ren.add_argument("--pages")
     p_ren.add_argument("--out-dir")
     p_ren.add_argument("--scale", type=float, default=2.0)
+    p_tbl = sub.add_parser("extract-table")
+    p_tbl.add_argument("file")
+    p_tbl.add_argument("--pages")
+    p_tbl.add_argument("--format", default="md", choices=["md", "csv", "xlsx"])
+    p_tbl.add_argument("--out")
     args = ap.parse_args(argv[1:])
     try:
         if args.cmd == "extract":
@@ -135,6 +191,13 @@ def main(argv: list[str]) -> int:
             for saved_path in render_pages(
                     args.file, out_dir=args.out_dir, pages=args.pages, scale=args.scale):
                 print(saved_path)
+        elif args.cmd == "extract-table":
+            tables = extract_tables(args.file, pages=args.pages)
+            if args.format == "md":
+                print(tables_to_markdown(tables))
+            else:
+                for p in tables_to_files(tables, args.out, args.format):
+                    print(p)
         return 0
     except OcrUnavailableError as e:
         print(str(e), file=sys.stderr)
