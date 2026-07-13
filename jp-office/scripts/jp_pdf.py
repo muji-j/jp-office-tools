@@ -104,9 +104,35 @@ def tables_to_markdown(tables) -> str:
                         for t in tables)
 
 
-def tables_to_files(tables, out, fmt: str):
-    """抽出済みの表を csv/xlsx ファイルへ書き出す(後続タスクで実装)。"""
-    raise NotImplementedError("csv/xlsx は後続タスクで実装します。")
+def _rows_to_df(rows):
+    """表の行リストを pandas DataFrame に変換する(列数を最大列数にパディング)。"""
+    import pandas as pd
+    ncol = max((len(r) for r in rows), default=0)
+    padded = [r + [""] * (ncol - len(r)) for r in rows]
+    return pd.DataFrame(padded)
+
+
+def tables_to_files(tables, out, fmt: str) -> list[str]:
+    """抽出済みの表を csv/xlsx ファイルへ書き出し、保存先パスのリストを返す。
+
+    fmt="xlsx": 1ファイルに表ごとのシート(シート名 p{page}_t{index}、31文字まで)。
+    fmt="csv": 表ごとに別ファイル({out.stem}_p{page}_t{index}.csv)。
+    """
+    base = Path(out) if out else Path("pdf_tables." + fmt)
+    saved = []
+    if fmt == "xlsx":
+        import pandas as pd
+        with pd.ExcelWriter(base) as xw:
+            for t in tables:
+                sheet = f"p{t['page']}_t{t['index']}"[:31]
+                _rows_to_df(t["rows"]).to_excel(xw, sheet_name=sheet, index=False, header=False)
+        saved.append(str(base))
+    elif fmt == "csv":
+        for t in tables:
+            p = base.parent / f"{base.stem}_p{t['page']}_t{t['index']}.csv"
+            _rows_to_df(t["rows"]).to_csv(p, index=False, header=False, encoding="utf-8-sig")
+            saved.append(str(p))
+    return saved
 
 
 def render_pages(path, out_dir=None, pages: str | None = None, scale: float = 2.0) -> list[str]:

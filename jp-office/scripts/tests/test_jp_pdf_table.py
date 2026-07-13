@@ -1,6 +1,5 @@
-"""jp_pdf: PDF 表抽出(extract_tables)+マークダウン変換のテスト。"""
+"""jp_pdf: PDF 表抽出(extract_tables)+マークダウン変換+csv/xlsx出力のテスト。"""
 from pathlib import Path
-import pytest
 import jp_pdf
 
 
@@ -44,3 +43,24 @@ def test_tables_to_markdown_escapes_pipe():
 
 def test_tables_to_markdown_empty():
     assert jp_pdf.tables_to_markdown([]) == "(表が見つかりませんでした)"
+
+
+def test_tables_to_files_csv(tmp_path):
+    tables = [{"page": 1, "index": 1, "rows": [["a", "b"], ["1", "2"]]},
+              {"page": 1, "index": 2, "rows": [["x"], ["y"]]}]
+    out = tmp_path / "res.csv"
+    saved = jp_pdf.tables_to_files(tables, str(out), "csv")
+    assert len(saved) == 2
+    p1 = Path(saved[0])
+    assert p1.exists() and p1.name == "res_p1_t1.csv"
+    assert "a,b" in p1.read_text(encoding="utf-8-sig")
+
+
+def test_tables_to_files_xlsx(tmp_path):
+    tables = [{"page": 1, "index": 1, "rows": [["a", "b"], ["1", "2"]]}]
+    out = tmp_path / "res.xlsx"
+    saved = jp_pdf.tables_to_files(tables, str(out), "xlsx")
+    assert len(saved) == 1 and Path(saved[0]).exists()
+    import openpyxl
+    wb = openpyxl.load_workbook(saved[0])
+    assert "p1_t1" in wb.sheetnames
