@@ -1,5 +1,6 @@
 """jp-office: スクリプト共通ユーティリティ(標準ライブラリのみ)."""
 from __future__ import annotations
+import os
 import sys
 from pathlib import Path
 
@@ -41,6 +42,12 @@ def read_text_auto(path) -> str:
 
 
 def run_cli(main_fn, argv) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
     try:
         return main_fn(argv)
     except (FileNotFoundError, IsADirectoryError) as e:
@@ -49,5 +56,9 @@ def run_cli(main_fn, argv) -> int:
     except JpOfficeError as e:
         print(str(e), file=sys.stderr)
     except (ValueError, OSError, RuntimeError) as e:
+        print(f"エラー: {e}", file=sys.stderr)
+    except Exception as e:
+        if os.environ.get("JP_OFFICE_DEBUG"):
+            raise
         print(f"エラー: {e}", file=sys.stderr)
     return 1

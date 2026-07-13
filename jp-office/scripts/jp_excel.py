@@ -36,7 +36,7 @@ def _check_supported_format(path) -> None:
     """旧 .xls 等、バイナリをテキストとして誤読する前に弾くガード。"""
     if Path(path).suffix.lower() not in _SUPPORTED_SUFFIXES:
         raise UnsupportedFormatError(
-            "サポートしていない形式です(対応: xlsx/xlsm/csv)。旧 .xls は xlsx に変換してください。")
+            "サポートしていない形式です(対応: xlsx/xlsm/csv/txt/tsv)。旧 .xls は xlsx に変換してください。")
 
 
 @dataclass
@@ -95,6 +95,7 @@ def _xlsx_sheet_names(path) -> list[str]:
 def list_sheets(path) -> list[str]:
     """xlsx/xlsm はシート名一覧、CSV は空リストを返す。"""
     path = Path(path)
+    _check_supported_format(path)
     if is_xlsx(path):
         return _xlsx_sheet_names(path)
     return []
@@ -432,9 +433,13 @@ _CHART_COLORS = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948
 
 def make_chart(path, kind: str, x: str, y: str, *, fmt: str = "png",
                title: str | None = None, sheet: str | None = None, out=None) -> str:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        raise JpOfficeError(
+            "グラフ描画に matplotlib が必要です。`/jp-office-setup` を実行してください。")
 
     src = Path(path)
     df, _, _ = _read(src, sheet=sheet)

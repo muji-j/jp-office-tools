@@ -89,3 +89,45 @@ def test_list_sheets_uses_shared_is_xlsx(tmp_path):
     _write_xlsx(f, [["a"], ["1"]])
     names = jp_excel.list_sheets(f)
     assert names == ["Sheet"]
+
+
+def test_list_sheets_rejects_xls_binary(tmp_path):
+    """SP5 Fix 4: sheets サブコマンド経路も旧 .xls を UnsupportedFormatError で弾く
+    (修正前は _check_supported_format を通らず '(CSV: シートなし)' に誤分類していた)。"""
+    f = tmp_path / "old.xls"
+    f.write_bytes(_OLE2_MAGIC + b"\x00" * 32)
+    with pytest.raises(UnsupportedFormatError):
+        jp_excel.list_sheets(f)
+
+
+def test_make_chart_matplotlib_missing_raises_jp_office_error(tmp_path, monkeypatch):
+    """SP5 Fix 3: matplotlib 未インストール時は生の ImportError ではなく
+    JpOfficeError(親切な日本語メッセージ)に変換される。"""
+    from jp_office_common import JpOfficeError
+
+    f = tmp_path / "d.csv"
+    f.write_text("月,売上\n1月,100\n", encoding="utf-8")
+
+    real_import = __import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "matplotlib" or name.startswith("matplotlib."):
+            raise ImportError("No module named 'matplotlib'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fake_import)
+    with pytest.raises(JpOfficeError, match="matplotlib"):
+        jp_excel.make_chart(f, kind="line", x="月", y="売上")
+
+
+def test_clean_file_corrupted_xlsx_clean_error(tmp_path, capsys):
+    """SP5 Fix 2 回帰: 壊れた(truncated zip)偽 .xlsx は run_cli 経由でトレースバックなし rc1。"""
+    from jp_office_common import run_cli
+
+    f = tmp_path / "broken.xlsx"
+    f.write_bytes(b"PK\x03\x04not a real zip")
+    rc = run_cli(jp_excel.main, ["jp_excel.py", "columns", str(f)])
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert err.strip() != ""
+    assert "Traceback" not in err
