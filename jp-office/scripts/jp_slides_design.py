@@ -12,6 +12,8 @@ SP3 で承認された16テーマ・モダンデザインの共通ヘルパー�
 from __future__ import annotations
 
 import math
+import sys
+from pathlib import Path
 
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -42,6 +44,17 @@ def slide(prs, bg):
     s.background.fill.solid()
     s.background.fill.fore_color.rgb = rgb(bg)
     return s
+
+
+def _new_slide(prs, prof, *, template_mode=False):
+    """render_* 内部用スライド生成。template_mode ではマスターを継承し塗り潰さない。"""
+    if template_mode:
+        return prs.slides.add_slide(prs.slide_layouts[6])
+    return slide(prs, prof["bg"])
+
+
+def _warn(msg):
+    print(f"⚠ {msg}", file=sys.stderr)
 
 
 def _ea(run, name):
@@ -170,6 +183,24 @@ def text(s, x, y, w, h, runs, align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP, ls=Non
             if sp:
                 _spc(r, sp)
     return tb
+
+
+def _cell_text(cell, val, font, size, *, bold=False, color=None):
+    """表セルの段落に必ず1つ run を作ってからテキストを設定する。
+
+    `cell.text = val` は val が空文字列だと run を0個生成し、直後の
+    `runs[0]` 参照で IndexError になるため使わない(過去 Critical の再発防止)。
+    セルは既定で空段落を1つ持つので paragraphs[0] は必ず存在し、add_run() は
+    常に run を1つ保証する。
+    """
+    p = cell.text_frame.paragraphs[0]
+    run = p.add_run()
+    run.text = str(val) if val is not None else ""
+    run.font.size = Pt(size)
+    run.font.bold = bold
+    if color is not None:
+        run.font.color.rgb = rgb(color)
+    _ea(run, font)
 
 
 def pill(s, x, y, w, h, txt, fill, fg, size=11, line=None, lw=1.0):
@@ -489,14 +520,21 @@ def _hero_stat(slide, prof, x, y, w, h, stat):
              str(note), prof["accent"], prof.get("on_accent", "FFFFFF"), 11)
 
 
-def render_cover(prs, prof, meta):
+# hero-stat カードが占める右側領域(8.75〜12.45in)とシグネチャ背景の右側装飾が
+# 衝突するテーマでは、hero-stat を描画しない(T2 からの繰越ガード)。
+_HERO_STAT_BLOCKED_BGSIGS = {"diagonal", "lines", "circle", "colorblock", "band", "rail"}
+
+
+def render_cover(prs, prof, meta, *, template_mode=False):
     """cover スライドを1枚描画して返す。
 
     meta: title(必須) / subtitle / date / author / kicker / audience / stat を利用する。
+    template_mode=True の場合はマスターを継承し、シグネチャ背景を描画しない。
     """
     meta = meta or {}
-    s = slide(prs, prof["bg"])
-    _bg(s, prof, "cover")
+    s = _new_slide(prs, prof, template_mode=template_mode)
+    if not template_mode:
+        _bg(s, prof, "cover")
     layout = _COVER_LAYOUT.get(prof.get("bgsig"), _COVER_LAYOUT["_default"])
     align = layout["align"]
     kicker_label = meta.get("kicker") or meta.get("audience")
@@ -516,15 +554,19 @@ def render_cover(prs, prof, meta):
         text(s, layout["x"], y, layout["w"], 0.4,
              [[R("　".join(bits), prof["body_font"], 13, prof["muted"])]], align=align)
     stat = meta.get("stat")
-    if stat:
+    if stat and prof.get("bgsig") not in _HERO_STAT_BLOCKED_BGSIGS:
         _hero_stat(s, prof, 8.75, 2.15, 3.7, 3.15, stat)
     return s
 
 
-def render_section(prs, prof, number, title):
-    """section(中扉)スライドを1枚描画して返す。number は "03" のような文字列。"""
-    s = slide(prs, prof["bg"])
-    _bg(s, prof, "section")
+def render_section(prs, prof, number, title, *, template_mode=False):
+    """section(中扉)スライドを1枚描画して返す。number は "03" のような文字列。
+
+    template_mode=True の場合はマスターを継承し、シグネチャ背景を描画しない。
+    """
+    s = _new_slide(prs, prof, template_mode=template_mode)
+    if not template_mode:
+        _bg(s, prof, "section")
     bgsig = prof.get("bgsig")
     ink = prof["ink"]
     accent = prof["accent"]
@@ -742,10 +784,14 @@ def _bullet_marker(s, prof, x, y, w, row_h, txt, font_size, idx):
     text(s, x + mw + 0.15, y, w - mw - 0.15, row_h, [[R(txt, bf, font_size, ink)]], anchor=MID, ls=1.15)
 
 
-def render_message(prs, prof, headline, body):
-    """message スライドを1枚描画して返す。body は文字列のリスト(空/None安全)。"""
-    s = slide(prs, prof["bg"])
-    _bg(s, prof, "body")
+def render_message(prs, prof, headline, body, *, template_mode=False):
+    """message スライドを1枚描画して返す。body は文字列のリスト(空/None安全)。
+
+    template_mode=True の場合はマスターを継承し、シグネチャ背景を描画しない。
+    """
+    s = _new_slide(prs, prof, template_mode=template_mode)
+    if not template_mode:
+        _bg(s, prof, "body")
     lay = _body_layout(prof)
     _kicker(s, prof, lay["x"], lay["ky"], 2.2, 0.42, "POINT")
     text(s, lay["x"], lay["hy"], lay["w"], 1.0,
@@ -764,10 +810,14 @@ def render_message(prs, prof, headline, body):
     return s
 
 
-def render_stats(prs, prof, headline, items):
-    """stats スライドを1枚描画して返す。items は {value,label,note?} のリスト(空安全)。"""
-    s = slide(prs, prof["bg"])
-    _bg(s, prof, "body")
+def render_stats(prs, prof, headline, items, *, template_mode=False):
+    """stats スライドを1枚描画して返す。items は {value,label,note?} のリスト(空安全)。
+
+    template_mode=True の場合はマスターを継承し、シグネチャ背景を描画しない。
+    """
+    s = _new_slide(prs, prof, template_mode=template_mode)
+    if not template_mode:
+        _bg(s, prof, "body")
     lay = _body_layout(prof)
     _kicker(s, prof, lay["x"], lay["ky"], 2.2, 0.42, "DATA")
     text(s, lay["x"], lay["hy"], lay["w"], 1.0,
@@ -778,4 +828,94 @@ def render_stats(prs, prof, headline, items):
     area = dict(x=lay["x"], y=lay["cy"], w=lay["w"], bottom=lay["cbottom"])
     fn = _STATS_DISPATCH.get(prof.get("layout"), _stats_cards)
     fn(s, prof, area, clean)
+    return s
+
+
+def render_table(prs, prof, headline, columns, rows, *, template_mode=False):
+    """table スライドを1枚描画して返す。
+
+    columns/rows は空・欠損・短い行でも安全(セルは常に _cell_text で書き込む)。
+    表の総高さは行あたり0.5inで積算し、4.4inを上限にクランプする。
+    template_mode=True の場合はマスターを継承し、シグネチャ背景を描画しない。
+    """
+    s = _new_slide(prs, prof, template_mode=template_mode)
+    if not template_mode:
+        _bg(s, prof, "body")
+    lay = _body_layout(prof)
+    _kicker(s, prof, lay["x"], lay["ky"], 2.2, 0.42, "TABLE")
+    text(s, lay["x"], lay["hy"], lay["w"], 1.0,
+         [[R(str(headline), prof["heading_font"], 30, prof["ink"], True)]], ls=1.05)
+    columns = list(columns or [])
+    rows = list(rows or [])
+    if not columns:
+        return s
+    ncols = len(columns)
+    nrows = len(rows) + 1
+    row_h = 0.5
+    height = min(row_h * nrows, 4.4)
+    x, w, top = lay["x"], lay["w"], lay["cy"]
+    gf = s.shapes.add_table(nrows, ncols, Inches(x), Inches(top), Inches(w), Inches(height))
+    table = gf.table
+    on_accent = prof.get("on_accent") or "FFFFFF"
+    for c, name in enumerate(columns):
+        cell = table.cell(0, c)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = rgb(prof["accent"])
+        _cell_text(cell, name, prof["body_font"], 13, bold=True, color=on_accent)
+    base_fill = prof.get("card") or prof["bg"]
+    for r, row in enumerate(rows, start=1):
+        zebra_row = r % 2 == 0
+        for c in range(ncols):
+            val = row[c] if c < len(row) else ""
+            cell = table.cell(r, c)
+            cell.fill.solid()
+            if zebra_row:
+                cell.fill.fore_color.rgb = rgb(prof["accent"])
+                _alpha(cell, 8)
+            else:
+                cell.fill.fore_color.rgb = rgb(base_fill)
+            _cell_text(cell, val, prof["body_font"], 12, color=prof["ink"])
+    hline(s, x, min(top + height + 0.06, SH - 0.2), w, prof["rule"], 1.0)
+    return s
+
+
+def render_image(prs, prof, headline, image, caption, *, template_mode=False):
+    """image スライドを1枚描画して返す。
+
+    画像は実比率を読み取りコンテンツ枠(最大幅8.0in・高さ4.0in)に収める。
+    画像パス欠損/読み込み失敗時は警告のみ出してスキップし、デッキ生成は継続する。
+    template_mode=True の場合はマスターを継承し、シグネチャ背景を描画しない。
+    """
+    s = _new_slide(prs, prof, template_mode=template_mode)
+    if not template_mode:
+        _bg(s, prof, "body")
+    lay = _body_layout(prof)
+    _kicker(s, prof, lay["x"], lay["ky"], 2.2, 0.42, "IMAGE")
+    text(s, lay["x"], lay["hy"], lay["w"], 1.0,
+         [[R(str(headline), prof["heading_font"], 30, prof["ink"], True)]], ls=1.05)
+    img_top = lay["cy"]
+    img_bottom = img_top
+    if image and Path(image).exists():
+        try:
+            from PIL import Image as _PILImage
+            with _PILImage.open(image) as _im:
+                iw, ih = _im.size
+            max_w = min(lay["w"], 8.0)
+            max_h = min(max(lay["cbottom"] - img_top, 1.0), 4.0)
+            w = max_w
+            h = w * (ih / iw) if iw else max_h
+            if h > max_h:
+                h = max_h
+                w = h * (iw / ih) if ih else max_w
+            s.shapes.add_picture(image, Inches(lay["x"]), Inches(img_top),
+                                  width=Inches(w), height=Inches(h))
+            img_bottom = img_top + h
+        except Exception:
+            _warn(f"画像の読み込みに失敗しました(スキップ): {image}")
+    elif image:
+        _warn(f"画像が見つかりません(スキップ): {image}")
+    if caption:
+        cap_top = min(img_bottom + 0.15, SH - 0.6)
+        text(s, lay["x"], cap_top, lay["w"], 0.5,
+             [[R(str(caption), prof["body_font"], 12, prof["ink"])]])
     return s
