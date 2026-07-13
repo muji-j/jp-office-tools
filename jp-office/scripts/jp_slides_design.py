@@ -260,11 +260,14 @@ def _bg_rail(slide, prof, variant):
 
 
 def _bg_panel(slide, prof, variant):
-    """藍(ai) — cover/body は右側の淡いティントパネル、section はアクセント全面。"""
+    """藍(ai) — section はアクセント全面。cover/body は背景装飾なし。
+
+    原典 design_ref/sp3_themes.py の ai() は cover/body に背景装飾を持たず、
+    リッチさはコンテンツカード側で担保している。ここでもプロファイルの背景色
+    (slide() で塗った bg)のみを残し、section の全面アクセントだけ原典どおり描く。
+    """
     if variant == "section":
         rect(slide, 0, 0, SW, SH, fill=prof["accent"])
-    else:
-        rect(slide, 8.5, 0, SW - 8.5, SH, fill=_tint(prof["accent"], 0.9))
 
 
 def _bg_diagonal(slide, prof, variant):
@@ -345,16 +348,14 @@ def _bg_colorblock(slide, prof, variant):
 
 
 def _bg_glassdark(slide, prof, variant):
-    """墨(sumi) — ダーク背景 + ネオン調の細線/グロー。"""
-    accent = prof["accent"]
-    if variant == "cover":
-        hline(slide, 0.9, 1.95, 2.7, accent, 0.75, alpha=45)
-        oval(slide, 11.3, -1.2, 3.4, 3.4, fill=accent, alpha=8)
-    elif variant == "body":
-        oval(slide, 11.8, 6.0, 2.0, 2.0, fill=accent, alpha=6)
-    elif variant == "section":
-        rect(slide, 0.95, 4.6, 0.9, 0.08, fill=accent)
-        oval(slide, -1.2, -1.2, 3.2, 3.2, fill=accent, alpha=8)
+    """墨(sumi) — ダーク背景のみ。cover/body に背景装飾はない。
+
+    原典 design_ref/sp3_themes.py の sumi() はヘアラインもグロー円も持たず、
+    ネオン感はカード枠線・アクセント文字色だけで表現している。section のみ、
+    原典どおり見出し下の短いアクセントバーを描く。
+    """
+    if variant == "section":
+        rect(slide, 0.95, 4.6, 0.9, 0.08, fill=prof["accent"])
 
 
 def _bg_horizon(slide, prof, variant):
@@ -548,8 +549,10 @@ def render_section(prs, prof, number, title):
         text(s, 0.9, 3.3, 3.0, 0.5, [[R(str(number), GO, 20, accent, True)]])
         text(s, 7.2, 3.0, 5.6, 1.4, [[R(str(title), heading, 34, on_accent, True)]], ls=1.1)
     elif bgsig == "colorblock":
+        # 番号はタイトル同様アクセント全面ブロック(y<3.4)の中に収め、ブロック色と
+        # 同化しないよう on_accent で描く(旧: accent 色でブロックに埋没していた)。
         text(s, 0.9, 1.1, 11.5, 1.4, [[R(str(title), heading, 40, on_accent, True)]])
-        text(s, 0.9, 3.3, 2.0, 0.5, [[R(str(number), GO, 16, accent, True)]])
+        text(s, 0.9, 2.9, 2.0, 0.4, [[R(str(number), GO, 16, on_accent, True)]])
     elif bgsig == "spine":
         text(s, 0.9, 3.0, 5.4, 1.4,
              [[R(str(number), GO, 14, prof["muted"], False, 60)], [R(str(title), heading, 34, ink, True)]],

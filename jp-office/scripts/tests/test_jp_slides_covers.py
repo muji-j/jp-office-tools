@@ -113,6 +113,52 @@ def test_render_cover_handles_missing_optional_meta():
     assert "最小構成" in _all_text(cover)
 
 
+def _run_colors(slide):
+    """スライド上の全テキスト run について (文字列, RGBColor) のリストを返す。"""
+    out = []
+    for shp in slide.shapes:
+        if not shp.has_text_frame:
+            continue
+        for p in shp.text_frame.paragraphs:
+            for r in p.runs:
+                out.append((r.text, r.font.color.rgb))
+    return out
+
+
+def test_saisou_section_number_color_differs_from_block_fill():
+    # 彩層(colorblock) の section は上部にアクセント全面ブロックを敷く。
+    # 番号テキストがそのブロック色と同色だと埋没するため、異なる色であることを検証する。
+    prof = jp_slides.THEME_PROFILES["彩層"]
+    prs = D.new_prs()
+    section = D.render_section(prs, prof, "03", "下期の重点施策")
+    block_color = RGBColor.from_string(prof["accent"])
+    number_colors = [c for (t, c) in _run_colors(section) if t == "03"]
+    assert number_colors, "セクション番号のテキストランが見つかりません。"
+    for c in number_colors:
+        assert c != block_color
+
+
+@pytest.mark.parametrize("variant", ["cover", "body"])
+def test_ai_panel_has_no_tint_side_panel(variant):
+    # 藍(ai) の原典は cover/body に背景装飾を持たない。派生の淡色ティントパネル
+    # (右側の _tint(accent) 矩形)が復活していないことを回帰的に確認する。
+    prof = jp_slides.THEME_PROFILES["藍"]
+    prs = D.new_prs()
+    s = D.slide(prs, prof["bg"])
+    D._bg(s, prof, variant)
+    assert len(s.shapes) == 0
+
+
+@pytest.mark.parametrize("variant", ["cover", "body"])
+def test_sumi_glassdark_has_no_glow_oval(variant):
+    # 墨(sumi) の原典は cover/body にヘアライン・グロー円を持たない。
+    prof = jp_slides.THEME_PROFILES["墨"]
+    prs = D.new_prs()
+    s = D.slide(prs, prof["bg"])
+    D._bg(s, prof, variant)
+    assert len(s.shapes) == 0
+
+
 def test_render_cover_renders_hero_stat_when_present():
     prof = jp_slides.THEME_PROFILES["藍"]
     prs = D.new_prs()
