@@ -5,6 +5,8 @@ pytest.importorskip("pptx")
 import jp_slides
 import jp_slides_design as D
 from pptx import Presentation
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
 
 THEME_KEYS = list(jp_slides.THEME_PROFILES)
 
@@ -29,6 +31,32 @@ def _build(fn, key, *args):
     prs = D.new_prs()
     slide = fn(prs, prof, *args)
     return prs, slide
+
+
+_CARD_AUTO_SHAPES = {MSO_SHAPE.ROUNDED_RECTANGLE, MSO_SHAPE.ROUND_2_SAME_RECTANGLE}
+
+
+def _card_body_shapes(slide, prof):
+    """_card() が最初に描くカード本体(body-fill色のRR/RTOP)図形の一覧を返す。
+
+    shadow複製(shadow色)やアクセント色のストリップ/レフトバーはカード本体と
+    fill色が異なるため除外される。カード1枚につき本体は必ず1つだけ描かれる
+    (card_plain 内で最初に呼ばれる rect(..., fill=body_fill, shape=RR/RTOP))ので、
+    この集合の個数がそのまま「カード枚数」になる。
+    """
+    body_fill = RGBColor.from_string(prof.get("card") or prof["bg"])
+    out = []
+    for shp in slide.shapes:
+        if shp.shape_type != MSO_SHAPE_TYPE.AUTO_SHAPE:
+            continue
+        if shp.auto_shape_type not in _CARD_AUTO_SHAPES:
+            continue
+        try:
+            if shp.fill.fore_color.rgb == body_fill:
+                out.append(shp)
+        except Exception:
+            continue
+    return out
 
 
 # ---- render_message ----
@@ -126,6 +154,33 @@ def test_render_stats_cards_layout_shows_all_values_and_labels():
     for it in items:
         assert it["value"] in text
         assert it["label"] in text
+
+
+def test_render_stats_bento_card_count_matches_items():
+    # 藍(bento) — ヒーローカード1枚+残り item 数の小カードで、カード枚数は items 総数と一致するはず。
+    items = [
+        {"value": "182億", "label": "エネルギー", "note": "+18%"},
+        {"value": "24億", "label": "SaaS", "note": "黒字化"},
+        {"value": "97億", "label": "海外", "note": "+4%"},
+    ]
+    prof = jp_slides.THEME_PROFILES[BENTO_KEY]
+    _, slide = _build(D.render_stats, BENTO_KEY, "三つの事業", items)
+    cards = _card_body_shapes(slide, prof)
+    assert len(cards) == len(items)
+
+
+def test_render_stats_cards_card_count_matches_items():
+    # 常磐(cards) — 均等カードなので、カード枚数は items 総数と一致するはず(4枚=折り返しなし)。
+    items = [
+        {"value": "182億", "label": "エネルギー", "note": "+18%"},
+        {"value": "24億", "label": "SaaS", "note": "黒字化"},
+        {"value": "97億", "label": "海外", "note": "+4%"},
+        {"value": "5億", "label": "その他", "note": "横ばい"},
+    ]
+    prof = jp_slides.THEME_PROFILES[CARDS_KEY]
+    _, slide = _build(D.render_stats, CARDS_KEY, "四つの事業", items)
+    cards = _card_body_shapes(slide, prof)
+    assert len(cards) == len(items)
 
 
 def test_render_stats_poster_single_item_oversized_value():

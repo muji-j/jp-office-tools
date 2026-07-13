@@ -170,3 +170,39 @@ def test_render_cover_renders_hero_stat_when_present():
     assert "303億" in text
     assert "上期 売上高" in text
     assert "前年比 +14%" in text
+
+
+# ---- hero-stat ガード回帰(T2 由来の _HERO_STAT_BLOCKED_BGSIGS) ----
+# 右側領域(8.75〜12.45in)がシグネチャ背景の右側装飾と衝突する6テーマでは、
+# stat が meta に指定されてもヒーローカードを描画してはならない。
+_HERO_STAT_BLOCKED_THEMES = ["常磐", "青碧", "朱", "彩層", "鉄紺", "石板"]
+
+
+@pytest.mark.parametrize("key", _HERO_STAT_BLOCKED_THEMES)
+def test_hero_stat_blocked_for_conflicting_bgsig_themes(key):
+    prof = jp_slides.THEME_PROFILES[key]
+    assert prof["bgsig"] in D._HERO_STAT_BLOCKED_BGSIGS, (
+        f"{key} の bgsig {prof['bgsig']!r} が _HERO_STAT_BLOCKED_BGSIGS から外れている"
+    )
+    prs = D.new_prs()
+    cover = D.render_cover(prs, prof, {
+        "title": "事業戦略アップデート",
+        "stat": {"value": "303億", "label": "上期売上"},
+    })
+    text = _all_text(cover)
+    assert "303億" not in text
+    assert "上期売上" not in text
+
+
+def test_hero_stat_rendered_for_non_blocked_bgsig_theme():
+    # 藍(panel) は _HERO_STAT_BLOCKED_BGSIGS に含まれないため、対照としてヒーローカードが描画される。
+    prof = jp_slides.THEME_PROFILES["藍"]
+    assert prof["bgsig"] not in D._HERO_STAT_BLOCKED_BGSIGS
+    prs = D.new_prs()
+    cover = D.render_cover(prs, prof, {
+        "title": "事業戦略アップデート",
+        "stat": {"value": "303億", "label": "上期売上"},
+    })
+    text = _all_text(cover)
+    assert "303億" in text
+    assert "上期売上" in text
