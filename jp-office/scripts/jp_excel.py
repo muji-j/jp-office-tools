@@ -10,27 +10,32 @@ from pathlib import Path
 import pandas as pd
 
 from jp_dates import wareki_to_iso
+from jp_office_common import (
+    JpOfficeError,
+    UnsupportedFormatError,
+    detect_encoding as _detect_encoding,
+    is_xlsx,
+)
 
 ROW_GUARD = 500_000
 
+# clean_file/diff/column_summary/pivot/chart が共通で通るロード経路で許容する拡張子。
+_SUPPORTED_SUFFIXES = (".xlsx", ".xlsm", ".csv", ".txt", ".tsv")
 
-class RowGuardError(Exception):
+
+class RowGuardError(JpOfficeError):
     """行数ガード(ROW_GUARD)超過。分割処理を案内する。"""
 
 
-def detect_encoding(path) -> tuple[str, str]:
-    if Path(path).suffix.lower() in (".xlsx", ".xlsm"):
-        return "xlsx", "xlsx はバイナリ形式のため文字コード判定は不要"
-    raw = Path(path).read_bytes()
-    if raw.startswith(b"\xef\xbb\xbf"):
-        return "utf-8-sig", "UTF-8 BOM を検出"
-    for enc in ("utf-8", "cp932", "euc_jp"):
-        try:
-            raw.decode(enc)
-            return enc, f"{enc} で厳密デコード成功"
-        except UnicodeDecodeError:
-            continue
-    return "cp932", "全候補で厳密デコード失敗 — cp932(errors='replace') でフォールバック"
+# 後方互換のための再エクスポート(実体は jp_office_common.detect_encoding)。
+detect_encoding = _detect_encoding
+
+
+def _check_supported_format(path) -> None:
+    """旧 .xls 等、バイナリをテキストとして誤読する前に弾くガード。"""
+    if Path(path).suffix.lower() not in _SUPPORTED_SUFFIXES:
+        raise UnsupportedFormatError(
+            "サポートしていない形式です(対応: xlsx/xlsm/csv)。旧 .xls は xlsx に変換してください。")
 
 
 @dataclass
@@ -89,7 +94,7 @@ def _xlsx_sheet_names(path) -> list[str]:
 def list_sheets(path) -> list[str]:
     """xlsx/xlsm はシート名一覧、CSV は空リストを返す。"""
     path = Path(path)
-    if path.suffix.lower() in (".xlsx", ".xlsm"):
+    if is_xlsx(path):
         return _xlsx_sheet_names(path)
     return []
 
@@ -107,7 +112,8 @@ def _safe_sheet_name(name: str) -> str:
 
 def _read(path: Path, sheet: str | None = None) -> tuple[pd.DataFrame, str, str]:
     path = Path(path)
-    if path.suffix.lower() in (".xlsx", ".xlsm"):
+    _check_supported_format(path)
+    if is_xlsx(path):
         enc, _ = detect_encoding(path)
         names = _xlsx_sheet_names(path)
         if sheet is not None:
@@ -269,14 +275,15 @@ def _clean_xlsx_all_sheets(src: Path, dst, encoding_out: str, names: list[str]) 
 
 def _clean_to_xlsx(src: Path, dst, sheet: str | None) -> CleanReport:
     src = Path(src)
-    is_xlsx = src.suffix.lower() in (".xlsx", ".xlsm")
+    _check_supported_format(src)
+    xlsx_input = is_xlsx(src)
     enc_in, _ = detect_encoding(src)
     dst = Path(dst) if dst else src.with_name(f"{src.stem}_cleaned.xlsx")
     if dst.resolve() == src.resolve():
         raise ValueError("出力先が入力と同一です(原本は変更しない方針)。")
-    if is_xlsx and sheet is None:
+    if xlsx_input and sheet is None:
         names = _xlsx_sheet_names(src)
-    elif is_xlsx:
+    elif xlsx_input:
         names = [sheet]
     else:
         names = [None]
@@ -316,13 +323,14 @@ def _clean_to_xlsx(src: Path, dst, sheet: str | None) -> CleanReport:
 def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig",
                sheet: str | None = None, out_format: str = "csv") -> CleanReport:
     src = Path(src)
+    _check_supported_format(src)
     if out_format == "xlsx":
         return _clean_to_xlsx(src, dst, sheet)
-    is_xlsx = src.suffix.lower() in (".xlsx", ".xlsm")
-    if not is_xlsx and _count_lines(src, ROW_GUARD + 1) - 1 > ROW_GUARD:
+    xlsx_input = is_xlsx(src)
+    if not xlsx_input and _count_lines(src, ROW_GUARD + 1) - 1 > ROW_GUARD:
         raise RowGuardError(f"行数がガード{ROW_GUARD}行を超えています。ファイルを分割してから再実行してください。")
 
-    if is_xlsx and sheet is None:
+    if xlsx_input and sheet is None:
         names = _xlsx_sheet_names(src)
         if len(names) > 1:
             return _clean_xlsx_all_sheets(src, dst, encoding_out, names)
@@ -331,7 +339,7 @@ def clean_file(src, dst=None, *, encoding_out: str = "utf-8-sig",
     _check_row_guard(df)
     if dst:
         dst = Path(dst)
-    elif is_xlsx and sheet is not None:
+    elif xlsx_input and sheet is not None:
         dst = src.with_name(f"{src.stem}_{_safe_sheet_name(sheet)}_cleaned.csv")
     else:
         dst = src.with_name(f"{src.stem}_cleaned.csv")
@@ -609,8 +617,8 @@ def _diff_xlsx_all_sheets(a: Path, b: Path, key: str | None) -> DiffReport:
 
 def diff_files(a, b, *, key: str | None = None, sheet: str | None = None) -> DiffReport:
     a, b = Path(a), Path(b)
-    a_is_xlsx = a.suffix.lower() in (".xlsx", ".xlsm")
-    b_is_xlsx = b.suffix.lower() in (".xlsx", ".xlsm")
+    a_is_xlsx = is_xlsx(a)
+    b_is_xlsx = is_xlsx(b)
 
     if sheet is None and a_is_xlsx and b_is_xlsx:
         return _diff_xlsx_all_sheets(a, b, key)
