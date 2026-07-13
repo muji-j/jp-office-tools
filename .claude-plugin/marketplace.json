@@ -3,7 +3,7 @@
   "owner": { "name": "muji" },
   "metadata": {
     "description": "日本の業務環境向け 汎用オフィスツール(Excel/CSV・ビジネス文書・メール・スライド生成・日付)マーケットプレイス",
-    "version": "0.7.0"
+    "version": "0.7.1"
   },
   "plugins": [
     {
