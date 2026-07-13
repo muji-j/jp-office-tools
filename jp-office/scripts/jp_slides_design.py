@@ -561,3 +561,221 @@ def render_section(prs, prof, number, title):
         _kicker(s, prof, 0.95, 2.35, 2.0, 0.5, label)
         text(s, 0.9, 3.0, 11.5, 1.4, [[R(str(title), heading, 44, ink, True)]], align=C, anchor=MID)
     return s
+
+
+# ---- body(message/stats) レイアウト微調整(bgsig ごとの背景装飾との衝突回避) ----
+# キー: x/w=本文の左端・幅、ky=キッカーの y、hy=見出しの y、cy=本文コンテンツの開始 y、
+# cbottom=本文コンテンツが収まる下限 y。各値は _bg(variant="body") が描く装飾
+# (帯・レール・波・フレーム・スパイン等)を避けるよう調整してある。
+_BODY_LAYOUT = {
+    "band":       dict(x=0.9, w=11.5, ky=1.05, hy=1.65, cy=2.6, cbottom=7.1),
+    "rail":       dict(x=2.3, w=9.4,  ky=0.7,  hy=1.3,  cy=2.5, cbottom=7.1),
+    "wave":       dict(x=0.9, w=11.5, ky=0.6,  hy=1.25, cy=2.5, cbottom=6.3),
+    "bottomband": dict(x=0.9, w=11.5, ky=0.6,  hy=1.25, cy=2.5, cbottom=6.65),
+    "frame":      dict(x=1.3, w=10.7, ky=0.85, hy=1.4,  cy=2.7, cbottom=6.7),
+    "spine":      dict(x=1.2, w=11.2, ky=0.6,  hy=0.85, cy=2.2, cbottom=6.9),
+    "lines":      dict(x=0.9, w=11.5, ky=0.6,  hy=1.2,  cy=2.6, cbottom=7.1),
+    "_default":   dict(x=0.9, w=11.5, ky=0.6,  hy=1.25, cy=2.5, cbottom=7.1),
+}
+
+
+def _body_layout(prof):
+    return _BODY_LAYOUT.get(prof.get("bgsig"), _BODY_LAYOUT["_default"])
+
+
+# ---- カード描画(prof["card_style"] に応じたバリエーション) ----
+def _card(s, prof, x, y, w, h):
+    style = prof.get("card_style", "plain")
+    fill = prof.get("card") or prof["bg"]
+    shadow = prof.get("shadow")
+    accent = prof["accent"]
+    if style == "topstrip":
+        card_topstrip(s, x, y, w, h, fill, accent, shadow=shadow)
+    elif style == "leftbar":
+        card_leftbar(s, x, y, w, h, fill, accent, shadow=shadow)
+    elif style == "outline":
+        card_outline(s, x, y, w, h, accent, lw=1.25, fill=fill)
+    elif style == "rounded":
+        card_plain(s, x, y, w, h, fill, shadow=shadow, radius=0.09)
+    elif style == "glass":
+        line = prof.get("glow") or accent
+        card_plain(s, x, y, w, h, fill, line=line, lw=1.0, lalpha=40)
+    else:  # plain
+        card_plain(s, x, y, w, h, fill, shadow=shadow)
+
+
+def _stat_block(s, prof, x, y, w, h, item, value_size, label_size, note_mode="pill"):
+    """カード(またはコンテンツ枠)内に label/value/note を積み上げて描く。"""
+    accent = prof["accent"]
+    ty = y
+    label = item.get("label")
+    if label:
+        text(s, x, ty, w, 0.34, [[R(str(label), prof["body_font"], label_size, prof["muted"])]])
+        ty += 0.38
+    vh = min(value_size / 72.0 * 1.35, max(h - (ty - y) - 0.4, 0.5))
+    text(s, x, ty, w, vh, [[R(str(item.get("value", "")), prof["heading_font"], value_size, accent, True)]])
+    ty += vh
+    note = item.get("note")
+    if note:
+        if note_mode == "pill" and w >= 1.8 and (y + h - ty) >= 0.4:
+            ny = min(ty + 0.05, y + h - 0.44)
+            pill(s, x, ny, min(w, 2.2), 0.4, str(note), accent, prof.get("on_accent", "FFFFFF"), 10)
+        else:
+            text(s, x, ty + 0.03, w, 0.32, [[R(str(note), prof["body_font"], max(label_size - 1, 9), accent, True)]])
+
+
+# ---- stats の4アーキタイプ ----
+def _stats_bento(s, prof, area, items):
+    """藍/藍鉄/墨/石板/鉄紺 — 先頭 item を大型ヒーローカード、残りを右側の小カード群に。"""
+    x, y, w, bottom = area["x"], area["y"], area["w"], area["bottom"]
+    h = max(bottom - y, 1.0)
+    hero, rest = items[0], items[1:]
+    hero_w = w * 0.52
+    _card(s, prof, x, y, hero_w, h)
+    _stat_block(s, prof, x + 0.4, y + 0.4, hero_w - 0.8, h - 0.8, hero, value_size=64, label_size=14)
+    if not rest:
+        return
+    rx = x + hero_w + 0.25
+    rw = w - hero_w - 0.25
+    n = len(rest)
+    gap = 0.22
+    rh = max((h - gap * (n - 1)) / n, 0.7)
+    vsize = 34 if n <= 2 else (24 if n <= 4 else 17)
+    ry = y
+    for it in rest:
+        _card(s, prof, rx, ry, rw, rh)
+        _stat_block(s, prof, rx + 0.32, ry + 0.28, rw - 0.64, rh - 0.56, it, value_size=vsize, label_size=12)
+        ry += rh + gap
+
+
+def _stats_cards(s, prof, area, items):
+    """常磐/青碧/山吹/彩層/桜/亜麻 — 均等カード。4枚を超えたら2行に折り返す。"""
+    x, y, w, bottom = area["x"], area["y"], area["w"], area["bottom"]
+    n = len(items)
+    cols = min(n, 4)
+    rows = math.ceil(n / cols)
+    gap = 0.22
+    total_h = max(bottom - y, 1.0)
+    row_h = max((total_h - gap * (rows - 1)) / rows, 1.2)
+    col_w = (w - gap * (cols - 1)) / cols
+    vsize = 40 if n <= 3 else (28 if n <= 6 else 20)
+    for i, it in enumerate(items):
+        r, c = divmod(i, cols)
+        cx = x + c * (col_w + gap)
+        cy = y + r * (row_h + gap)
+        _card(s, prof, cx, cy, col_w, row_h)
+        _stat_block(s, prof, cx + 0.3, cy + 0.3, col_w - 0.6, row_h - 0.6, it, value_size=vsize, label_size=13)
+
+
+def _stats_poster(s, prof, area, items):
+    """白磁/朱 — 単一 item は超特大 value、複数は大きな数字を縦に並べる。"""
+    x, y, w, bottom = area["x"], area["y"], area["w"], area["bottom"]
+    if len(items) == 1:
+        it = items[0]
+        text(s, x, y, w, 2.4, [[R(str(it.get("value", "")), prof["heading_font"], 140, prof["accent"], True)]])
+        ty = y + 2.5
+        label = it.get("label")
+        if label:
+            text(s, x, ty, w, 0.5, [[R(str(label), prof["body_font"], 20, prof["ink"], True)]])
+            ty += 0.55
+        note = it.get("note")
+        if note:
+            text(s, x, ty, w, 0.5, [[R(str(note), prof["body_font"], 15, prof["muted"])]])
+        return
+    n = len(items)
+    row_h = max((bottom - y) / n, 0.7)
+    vsize = 44 if n <= 3 else (30 if n <= 6 else 22)
+    for i, it in enumerate(items):
+        ry = y + i * row_h
+        text(s, x, ry, 2.4, row_h,
+             [[R(str(it.get("value", "")), prof["heading_font"], vsize, prof["accent"], True)]], anchor=MID)
+        label_note = str(it.get("label", ""))
+        note = it.get("note")
+        if note:
+            label_note += f"　{note}"
+        text(s, x + 2.6, ry, w - 2.6, row_h, [[R(label_note, prof["body_font"], 16, prof["ink"])]], anchor=MID)
+
+
+def _stats_list(s, prof, area, items):
+    """霞/藤/明朝 — value を大きく、label/note を行として並べる。"""
+    x, y, w, bottom = area["x"], area["y"], area["w"], area["bottom"]
+    n = len(items)
+    row_h = max((bottom - y) / n, 0.65)
+    vsize = 32 if n <= 4 else (22 if n <= 6 else 16)
+    for i, it in enumerate(items):
+        ry = y + i * row_h
+        hline(s, x, ry, w, prof["rule"], 1.0)
+        text(s, x, ry + 0.1, 2.6, row_h - 0.2,
+             [[R(str(it.get("value", "")), prof["heading_font"], vsize, prof["accent"], True)]], anchor=MID)
+        lines = [[R(str(it.get("label", "")), prof["body_font"], 15, prof["ink"], True)]]
+        note = it.get("note")
+        if note:
+            lines.append([R(str(note), prof["body_font"], 12, prof["muted"])])
+        text(s, x + 2.8, ry + 0.1, w - 2.8, row_h - 0.2, lines, ls=1.2, anchor=MID)
+
+
+_STATS_DISPATCH = {
+    "bento": _stats_bento, "cards": _stats_cards, "poster": _stats_poster, "list": _stats_list,
+}
+
+
+# ---- message の箇条書きマーカー(prof["bullet"]) ----
+def _bullet_marker(s, prof, x, y, w, row_h, txt, font_size, idx):
+    bullet = prof.get("bullet", "square")
+    accent = prof["accent"]
+    ink = prof["ink"]
+    bf = prof["body_font"]
+    mw = 0.55
+    my = y + row_h * 0.5
+    if bullet == "square":
+        rect(s, x, my - 0.06, 0.13, 0.13, fill=accent)
+    elif bullet == "dash":
+        text(s, x, y, mw, row_h, [[R("—", prof["heading_font"], font_size, accent, True)]], anchor=MID)
+    elif bullet == "chevron":
+        poly(s, [(x, my - 0.09), (x + 0.16, my), (x, my + 0.09)], fill=accent)
+    elif bullet == "ring":
+        oval(s, x, my - 0.09, 0.18, 0.18, line=accent, lw=1.5)
+    elif bullet == "number":
+        text(s, x, y, mw + 0.15, row_h, [[R(str(idx), prof["heading_font"], font_size, accent, True)]], anchor=MID)
+    else:  # tick
+        rect(s, x, my - 0.012, 0.22, 0.03, fill=prof.get("rule") or accent)
+    text(s, x + mw + 0.15, y, w - mw - 0.15, row_h, [[R(txt, bf, font_size, ink)]], anchor=MID, ls=1.15)
+
+
+def render_message(prs, prof, headline, body):
+    """message スライドを1枚描画して返す。body は文字列のリスト(空/None安全)。"""
+    s = slide(prs, prof["bg"])
+    _bg(s, prof, "body")
+    lay = _body_layout(prof)
+    _kicker(s, prof, lay["x"], lay["ky"], 2.2, 0.42, "POINT")
+    text(s, lay["x"], lay["hy"], lay["w"], 1.0,
+         [[R(str(headline), prof["heading_font"], 30, prof["ink"], True)]], ls=1.05)
+    items = [str(b) for b in (body or []) if b is not None and str(b) != ""]
+    if not items:
+        return s
+    n = len(items)
+    top, bottom = lay["cy"], lay["cbottom"]
+    row_h = max((bottom - top) / n, 0.45)
+    font_size = 18 if n <= 3 else (16 if n <= 5 else 13)
+    y = top
+    for i, it in enumerate(items, start=1):
+        _bullet_marker(s, prof, lay["x"], y, lay["w"], row_h, it, font_size, i)
+        y += row_h
+    return s
+
+
+def render_stats(prs, prof, headline, items):
+    """stats スライドを1枚描画して返す。items は {value,label,note?} のリスト(空安全)。"""
+    s = slide(prs, prof["bg"])
+    _bg(s, prof, "body")
+    lay = _body_layout(prof)
+    _kicker(s, prof, lay["x"], lay["ky"], 2.2, 0.42, "DATA")
+    text(s, lay["x"], lay["hy"], lay["w"], 1.0,
+         [[R(str(headline), prof["heading_font"], 30, prof["ink"], True)]], ls=1.05)
+    clean = [it for it in (items or []) if isinstance(it, dict)]
+    if not clean:
+        return s
+    area = dict(x=lay["x"], y=lay["cy"], w=lay["w"], bottom=lay["cbottom"])
+    fn = _STATS_DISPATCH.get(prof.get("layout"), _stats_cards)
+    fn(s, prof, area, clean)
+    return s
