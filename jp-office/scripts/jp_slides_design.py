@@ -210,3 +210,351 @@ def card_outline(s, x, y, w, h, line, lw=1.25, radius=0.06, fill=None, alpha=Non
 def card_split(s, x, y, w, h, body, divider, shadow=None, radius=0.06):
     card_plain(s, x, y, w, h, body, shadow=shadow, radius=radius)
     hline(s, x + 0.4, y + h * 0.5, w - 0.8, divider, 1.0)
+
+
+# ---- 色ユーティリティ ----
+def _tint(hexcolor, amount=0.85):
+    """アクセント色を白側にブレンドした淡色16進を返す(ゴースト数字などの背景装飾用)。
+
+    design_ref/sp3_themes.py はゴースト数字などの淡色をテーマごとに直接ハード
+    コードしていたが、ここではプロファイルのアクセント色から機械的に導出する。
+    """
+    r = int(hexcolor[0:2], 16)
+    g = int(hexcolor[2:4], 16)
+    b = int(hexcolor[4:6], 16)
+    r = int(r + (255 - r) * amount)
+    g = int(g + (255 - g) * amount)
+    b = int(b + (255 - b) * amount)
+    return f"{r:02X}{g:02X}{b:02X}"
+
+
+C = PP_ALIGN.CENTER
+L = PP_ALIGN.LEFT
+MID = MSO_ANCHOR.MIDDLE
+
+
+# ================= シグネチャ背景 16種 =================
+# variant: "cover"(フル強度) / "body"(控えめ) / "section"(フル、またはテーマ固有の変化形)。
+# 各関数は design_ref/sp3_themes.py の対応テーマ関数から背景・装飾図形の部分だけを
+# 抽出して移植し、ハードコードされた色をプロファイルのパレットキーに置き換えたもの。
+
+def _bg_airyrule(slide, prof, variant):
+    """霞(kasumi) — 縦の細罫線 + セクション見出し下の短いアクセント罫線。"""
+    if variant == "cover":
+        vline(slide, 4.7, 1.1, 5.3, prof["rule"], 1.0)
+    elif variant == "section":
+        hline(slide, SW / 2 - 1.25, 4.55, 2.5, prof["accent"], 1.4)
+
+
+def _bg_mono(slide, prof, variant):
+    """白磁(hakuji) — 装飾図形なし。余白とタイポグラフィのみで見せるテーマ。"""
+    return
+
+
+def _bg_rail(slide, prof, variant):
+    """石板(sekiban) — 左側の丸みレール。section は幅広版のレール。"""
+    if variant == "section":
+        rect(slide, -0.4, 0.35, 5.6, 6.8, fill=prof["accent"], shape=RR, radius=0.05)
+    else:
+        rect(slide, -0.4, 0.35, 2.1, 6.8, fill=prof["accent"], shape=RR, radius=0.06)
+
+
+def _bg_panel(slide, prof, variant):
+    """藍(ai) — cover/body は右側の淡いティントパネル、section はアクセント全面。"""
+    if variant == "section":
+        rect(slide, 0, 0, SW, SH, fill=prof["accent"])
+    else:
+        rect(slide, 8.5, 0, SW - 8.5, SH, fill=_tint(prof["accent"], 0.9))
+
+
+def _bg_diagonal(slide, prof, variant):
+    """常磐(tokiwa) — 対角フリーフォームのウェッジ。variant ごとに大きさが変わる。"""
+    accent = prof["accent"]
+    if variant == "cover":
+        poly(slide, [(9.4, 0), (SW, 0), (SW, SH), (8.2, SH)], fill=accent)
+        poly(slide, [(9.05, 0), (9.3, 0), (7.95, SH), (7.7, SH)], fill=accent, alpha=26)
+    elif variant == "body":
+        poly(slide, [(12.6, 0), (SW, 0), (SW, 0.85)], fill=accent)
+    elif variant == "section":
+        poly(slide, [(5.6, 0), (SW, 0), (SW, SH), (4.5, SH)], fill=accent)
+
+
+def _bg_band(slide, prof, variant):
+    """鉄紺(tetsukon) — 上部ヘッダーバンド。section は全面バンド。"""
+    navy = prof["accent"]
+    line = prof.get("accent2") or prof["accent"]
+    if variant == "cover":
+        rect(slide, 0, 0, SW, 2.5, fill=navy)
+        rect(slide, 0, 2.5, SW, 0.06, fill=line)
+    elif variant == "body":
+        rect(slide, 0, 0, SW, 0.9, fill=navy)
+    elif variant == "section":
+        rect(slide, 0, 0, SW, SH, fill=navy)
+
+
+def _bg_lines(slide, prof, variant):
+    """青碧(seiheki) — 罫線による画面の比率分割 + 右側カラーフィールド。"""
+    accent = prof["accent"]
+    rule = prof["rule"]
+    if variant == "cover":
+        rect(slide, 8.25, 0, SW - 8.25, SH, fill=accent)
+        vline(slide, 8.25, 0, SH, prof.get("accent2") or prof["ink"], 2.0)
+        hline(slide, 0.9, 4.35, 7.0, rule, 1.2)
+    elif variant == "body":
+        hline(slide, 0.9, 2.25, 11.5, rule, 1.4)
+    elif variant == "section":
+        rect(slide, 0, 0, 5.2, SH, fill=accent)
+
+
+def _bg_circle(slide, prof, variant):
+    """朱(shu) — 大型クロップ円 + 重なる小円。section はアクセント全面。"""
+    accent = prof["accent"]
+    accent2 = prof.get("accent2") or accent
+    if variant == "cover":
+        oval(slide, 8.7, 3.3, 6.4, 6.4, fill=accent)
+        oval(slide, 7.7, 4.6, 1.5, 1.5, fill=accent2, alpha=80)
+    elif variant == "section":
+        rect(slide, 0, 0, SW, SH, fill=accent)
+
+
+def _bg_ghostnum(slide, prof, variant):
+    """山吹(yamabuki) — 淡色オーバーサイズのゴースト数字。
+
+    design_ref では x+w がスライド幅を超えて右にブリードしていたが、ここでは
+    画面内に収まるよう座標を調整した修正版。
+    """
+    ghost = _tint(prof["accent"], 0.85)
+    if variant == "cover":
+        text(slide, 8.9, 1.35, 4.2, 2.6, [[R("8", GO, 118, ghost, True)]])
+    elif variant == "section":
+        text(slide, 7.9, 1.4, 5.0, 3.2, [[R("8", GO, 168, ghost, True)]])
+
+
+def _bg_colorblock(slide, prof, variant):
+    """彩層(saisou) — バウハウス風の色ブロック。section は上部ブロック+区切り線。"""
+    ind = prof["accent"]
+    gold = prof.get("accent2") or prof["muted"]
+    if variant == "cover":
+        rect(slide, 8.6, 0, SW - 8.6, SH, fill=ind)
+        rect(slide, 8.6, 4.6, SW - 8.6, 2.9, fill=gold)
+        oval(slide, 10.0, 1.0, 2.2, 2.2, fill=gold)
+        poly(slide, [(8.6, 3.2), (10.4, 3.2), (8.6, 5.0)], fill="FFFFFF")
+    elif variant == "section":
+        rect(slide, 0, 0, SW, 3.4, fill=ind)
+        rect(slide, 0, 3.4, SW, 0.1, fill=gold)
+
+
+def _bg_glassdark(slide, prof, variant):
+    """墨(sumi) — ダーク背景 + ネオン調の細線/グロー。"""
+    accent = prof["accent"]
+    if variant == "cover":
+        hline(slide, 0.9, 1.95, 2.7, accent, 0.75, alpha=45)
+        oval(slide, 11.3, -1.2, 3.4, 3.4, fill=accent, alpha=8)
+    elif variant == "body":
+        oval(slide, 11.8, 6.0, 2.0, 2.0, fill=accent, alpha=6)
+    elif variant == "section":
+        rect(slide, 0.95, 4.6, 0.9, 0.08, fill=accent)
+        oval(slide, -1.2, -1.2, 3.2, 3.2, fill=accent, alpha=8)
+
+
+def _bg_horizon(slide, prof, variant):
+    """藍鉄(aitetsu) — 大型楕円のホライズン + グロー円。全 variant で共通。"""
+    base = prof.get("card") or prof["bg"]
+    accent = prof["accent"]
+    oval(slide, -6, -9.5, 26, 14, fill=base)
+    oval(slide, 8.0, -2.4, 7.5, 7.5, fill=accent, alpha=12)
+    oval(slide, 10.2, -0.8, 3.6, 3.6, fill=accent, alpha=17)
+
+
+def _bg_wave(slide, prof, variant):
+    """桜(sakura) — サイン波。section は上向きの波(down=False)。"""
+    rose = prof["accent"]
+    if variant == "cover":
+        wave(slide, 0, SW, 6.0, 0.55, 1.2, rose, alpha=30)
+        wave(slide, 0, SW, 6.55, 0.4, 1.6, rose, alpha=55)
+        oval(slide, 10.6, 0.7, 3.3, 3.3, fill=rose, alpha=22)
+    elif variant == "body":
+        wave(slide, 0, SW, 6.7, 0.35, 1.4, rose, alpha=22)
+    elif variant == "section":
+        wave(slide, 0, SW, 3.3, 0.7, 1.1, rose, alpha=32, down=False)
+
+
+def _bg_bottomband(slide, prof, variant):
+    """亜麻(ama) — 下部の波/バンド。"""
+    terra = prof["accent"]
+    if variant == "cover":
+        wave(slide, 0, SW, 5.3, 0.45, 1.1, terra, alpha=88)
+        wave(slide, 0, SW, 5.7, 0.35, 1.5, terra, alpha=55)
+    elif variant == "body":
+        rect(slide, 0, 6.85, SW, 0.65, fill=terra)
+    elif variant == "section":
+        rect(slide, 0, 4.2, SW, 3.3, fill=terra)
+
+
+def _bg_frame(slide, prof, variant):
+    """藤(fuji) — 全周ヘアラインフレーム。section は二重フレーム。"""
+    wis = prof["accent"]
+    rect(slide, 0.35, 0.35, SW - 0.7, SH - 0.7, line=wis, lw=0.75, lalpha=60)
+    if variant == "section":
+        rect(slide, 0.6, 0.6, SW - 1.2, SH - 1.2, line=wis, lw=0.5, lalpha=40)
+
+
+def _bg_spine(slide, prof, variant):
+    """明朝(mincho) — 縦のスパイン罫線。variant ごとに位置が変わる。"""
+    rule = prof["rule"]
+    if variant == "cover":
+        vline(slide, 4.6, 0, SH, rule, 0.75)
+    elif variant == "body":
+        vline(slide, 0.9, 1.6, 4.8, rule, 0.75)
+    elif variant == "section":
+        vline(slide, 6.66, 0, SH, rule, 0.75)
+
+
+_BG_DISPATCH = {
+    "airyrule": _bg_airyrule, "mono": _bg_mono, "rail": _bg_rail, "panel": _bg_panel,
+    "diagonal": _bg_diagonal, "band": _bg_band, "lines": _bg_lines, "circle": _bg_circle,
+    "ghostnum": _bg_ghostnum, "colorblock": _bg_colorblock, "glassdark": _bg_glassdark,
+    "horizon": _bg_horizon, "wave": _bg_wave, "bottomband": _bg_bottomband,
+    "frame": _bg_frame, "spine": _bg_spine,
+}
+
+
+def _bg(slide, prof, variant):
+    """プロファイルの bgsig に応じてシグネチャ背景を描画するディスパッチャ。
+
+    variant は "cover" / "body" / "section" のいずれか。
+    """
+    fn = _BG_DISPATCH.get(prof.get("bgsig"))
+    if fn is None:
+        raise ValueError(f"未知の背景シグネチャです: {prof.get('bgsig')!r}")
+    fn(slide, prof, variant)
+
+
+# ---- キッカー(見出し上のラベル装飾) ----
+def _kicker(slide, prof, x, y, w, h, label):
+    if not label:
+        return
+    style = prof.get("kicker", "plain")
+    accent = prof["accent"]
+    if style == "pill":
+        soft = prof.get("card") if prof.get("dark") else _tint(accent, 0.85)
+        pill(slide, x, y, w, h, label, soft, accent, 12)
+    elif style == "pill_outline":
+        rect(slide, x, y, w, h, line=accent, lw=1.0, shape=RR, radius=0.5)
+        text(slide, x, y, w, h, [[R(label, GO, 11, accent, True, 80)]], align=C, anchor=MID)
+    elif style == "underline":
+        text(slide, x, y, w, 0.4, [[R(label, GO, 11, accent, True, 120)]])
+        hline(slide, x, y + 0.42, min(w, 2.2), prof["rule"], 1.0)
+    else:  # plain
+        text(slide, x, y, w, 0.4, [[R(label, GO, 11, accent, True, 100)]])
+
+
+# ---- cover レイアウト微調整(bgsig ごとの左右グラフィックとの衝突回避) ----
+_COVER_LAYOUT = {
+    "rail":       dict(x=2.3, w=9.4, align=L, kx=2.3, kw=2.2),
+    "diagonal":   dict(x=0.9, w=7.0, align=L, kx=0.9, kw=2.6),
+    "lines":      dict(x=0.9, w=7.2, align=L, kx=0.9, kw=2.6),
+    "circle":     dict(x=0.86, w=8.4, align=L, kx=0.9, kw=2.0),
+    "colorblock": dict(x=0.88, w=7.4, align=L, kx=0.9, kw=2.4),
+    "frame":      dict(x=1.5, w=10.3, align=C, kx=1.5, kw=10.3),
+    "airyrule":   dict(x=4.95, w=7.6, align=L, kx=0.9, kw=3.4),
+    "spine":      dict(x=4.95, w=7.5, align=L, kx=0.9, kw=3.4),
+    "band":       dict(x=0.9, w=11.5, align=L, kx=0.9, kw=2.6),
+    "panel":      dict(x=0.88, w=8.0, align=L, kx=0.9, kw=2.8),
+    "glassdark":  dict(x=0.9, w=9.0, align=L, kx=0.9, kw=2.9),
+    "horizon":    dict(x=0.88, w=9.0, align=L, kx=0.9, kw=2.9),
+    "ghostnum":   dict(x=0.88, w=8.0, align=L, kx=0.9, kw=2.0),
+    "wave":       dict(x=0.88, w=9.0, align=L, kx=0.9, kw=2.4),
+    "bottomband": dict(x=0.88, w=8.0, align=L, kx=0.9, kw=2.3),
+    "mono":       dict(x=0.9, w=11.6, align=L, kx=0.9, kw=2.9),
+    "_default":   dict(x=0.9, w=11.5, align=L, kx=0.9, kw=2.6),
+}
+
+
+def _hero_stat(slide, prof, x, y, w, h, stat):
+    """cover 用のヒーロー統計カード。meta["stat"] が指定された場合のみ描画する。"""
+    card_plain(slide, x, y, w, h, prof["card"], shadow=prof.get("shadow"))
+    ty = y + 0.4
+    label = stat.get("label")
+    if label:
+        text(slide, x + 0.35, ty, w - 0.7, 0.4, [[R(str(label), prof["body_font"], 13, prof["muted"])]])
+        ty += 0.5
+    value_color = prof["ink"] if prof.get("dark") else prof["accent"]
+    text(slide, x + 0.3, ty, w - 0.6, h * 0.4,
+         [[R(str(stat.get("value", "")), prof["heading_font"], 48, value_color, True)]])
+    note = stat.get("note")
+    if note:
+        pill(slide, x + 0.35, y + h - 0.65, min(w - 0.7, 2.2), 0.48,
+             str(note), prof["accent"], prof.get("on_accent", "FFFFFF"), 11)
+
+
+def render_cover(prs, prof, meta):
+    """cover スライドを1枚描画して返す。
+
+    meta: title(必須) / subtitle / date / author / kicker / audience / stat を利用する。
+    """
+    meta = meta or {}
+    s = slide(prs, prof["bg"])
+    _bg(s, prof, "cover")
+    layout = _COVER_LAYOUT.get(prof.get("bgsig"), _COVER_LAYOUT["_default"])
+    align = layout["align"]
+    kicker_label = meta.get("kicker") or meta.get("audience")
+    if kicker_label:
+        _kicker(s, prof, layout["kx"], 1.3, layout["kw"], 0.48, str(kicker_label))
+    title = meta.get("title", "")
+    text(s, layout["x"], 2.55, layout["w"], 2.1,
+         [[R(str(title), prof["heading_font"], 46, prof["ink"], True)]], align=align, ls=1.05)
+    y = 4.85
+    subtitle = meta.get("subtitle")
+    if subtitle:
+        text(s, layout["x"], y, layout["w"], 0.55,
+             [[R(str(subtitle), prof["body_font"], 17, prof["muted"])]], align=align)
+        y += 0.62
+    bits = [str(b) for b in (meta.get("date"), meta.get("author")) if b]
+    if bits:
+        text(s, layout["x"], y, layout["w"], 0.4,
+             [[R("　".join(bits), prof["body_font"], 13, prof["muted"])]], align=align)
+    stat = meta.get("stat")
+    if stat:
+        _hero_stat(s, prof, 8.75, 2.15, 3.7, 3.15, stat)
+    return s
+
+
+def render_section(prs, prof, number, title):
+    """section(中扉)スライドを1枚描画して返す。number は "03" のような文字列。"""
+    s = slide(prs, prof["bg"])
+    _bg(s, prof, "section")
+    bgsig = prof.get("bgsig")
+    ink = prof["ink"]
+    accent = prof["accent"]
+    on_accent = prof.get("on_accent") or "FFFFFF"
+    label = f"SECTION {number}" if number else "SECTION"
+    heading = prof["heading_font"]
+    if bgsig in ("panel", "band", "circle"):
+        _kicker(s, prof, 0.95, 2.35, 2.0, 0.5, label)
+        text(s, 0.9, 2.9, 11.5, 1.8, [[R(str(title), heading, 48, on_accent, True)]], anchor=MID)
+    elif bgsig in ("glassdark", "horizon"):
+        _kicker(s, prof, 0.95, 2.35, 2.0, 0.5, label)
+        text(s, 0.9, 3.0, 11.5, 1.6, [[R(str(title), heading, 48, ink, True)]], anchor=MID)
+    elif bgsig == "rail":
+        text(s, 0.6, 3.0, 4.6, 1.4,
+             [[R(str(number), GO, 18, on_accent, True)], [R(str(title), heading, 30, on_accent, True)]],
+             ls=1.3, anchor=MID)
+    elif bgsig == "lines":
+        text(s, 0.9, 3.1, 4.0, 1.4,
+             [[R(str(number), GO, 20, on_accent, True)], [R(str(title), heading, 32, on_accent, True)]],
+             ls=1.3, anchor=MID)
+    elif bgsig == "diagonal":
+        text(s, 0.9, 3.3, 3.0, 0.5, [[R(str(number), GO, 20, accent, True)]])
+        text(s, 7.2, 3.0, 5.6, 1.4, [[R(str(title), heading, 34, on_accent, True)]], ls=1.1)
+    elif bgsig == "colorblock":
+        text(s, 0.9, 1.1, 11.5, 1.4, [[R(str(title), heading, 40, on_accent, True)]])
+        text(s, 0.9, 3.3, 2.0, 0.5, [[R(str(number), GO, 16, accent, True)]])
+    elif bgsig == "spine":
+        text(s, 0.9, 3.0, 5.4, 1.4,
+             [[R(str(number), GO, 14, prof["muted"], False, 60)], [R(str(title), heading, 34, ink, True)]],
+             ls=1.3, anchor=MID)
+    else:
+        _kicker(s, prof, 0.95, 2.35, 2.0, 0.5, label)
+        text(s, 0.9, 3.0, 11.5, 1.4, [[R(str(title), heading, 44, ink, True)]], align=C, anchor=MID)
+    return s
