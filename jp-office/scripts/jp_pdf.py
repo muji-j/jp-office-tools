@@ -117,7 +117,10 @@ def tables_to_files(tables, out, fmt: str) -> list[str]:
 
     fmt="xlsx": 1ファイルに表ごとのシート(シート名 p{page}_t{index}、31文字まで)。
     fmt="csv": 表ごとに別ファイル({out.stem}_p{page}_t{index}.csv)。
+    表が無ければ([])、ファイルを作成せず空リストを返す。
     """
+    if not tables:
+        return []
     base = Path(out) if out else Path("pdf_tables." + fmt)
     saved = []
     if fmt == "xlsx":
@@ -222,7 +225,10 @@ def main(argv: list[str]) -> int:
             if args.format == "md":
                 print(tables_to_markdown(tables))
             else:
-                for p in tables_to_files(tables, args.out, args.format):
+                saved = tables_to_files(tables, args.out, args.format)
+                if not saved:
+                    print("(表が見つかりませんでした)", file=sys.stderr)
+                for p in saved:
                     print(p)
         return 0
     except OcrUnavailableError as e:

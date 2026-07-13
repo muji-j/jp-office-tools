@@ -64,3 +64,21 @@ def test_tables_to_files_xlsx(tmp_path):
     import openpyxl
     wb = openpyxl.load_workbook(saved[0])
     assert "p1_t1" in wb.sheetnames
+
+
+def test_tables_to_files_empty_csv_no_file(tmp_path):
+    # 表が無ければファイルを作らず空リストを返す(csv)
+    out = tmp_path / "res.csv"
+    saved = jp_pdf.tables_to_files([], str(out), "csv")
+    assert saved == []
+    assert not out.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_tables_to_files_empty_xlsx_no_file(tmp_path):
+    # 表が無ければファイルを作らず空リストを返す(xlsx、内容の無い Sheet1 を生成しない)
+    out = tmp_path / "res.xlsx"
+    saved = jp_pdf.tables_to_files([], str(out), "xlsx")
+    assert saved == []
+    assert not out.exists()
+    assert list(tmp_path.iterdir()) == []
