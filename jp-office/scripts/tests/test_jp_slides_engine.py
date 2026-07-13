@@ -239,3 +239,140 @@ def test_overview_cli(tmp_path):
     outp = tmp_path / "o.pptx"
     rc = jp_slides.main(["jp_slides.py", "overview", "--out", str(outp)])
     assert rc == 0 and outp.exists()
+
+
+# ---- SP3 deep-review 指摘の再現・修正確認 ----
+
+def _reduced_layout_template(tmp_path, name="reduced.pptx", keep=3):
+    """スライドレイアウトが `keep` 個しかないブランドテンプレートを作って保存し、パスを返す。
+
+    デフォルトテンプレートの sldLayoutIdLst から先頭 `keep` 個以外を間引く。
+    先頭3レイアウト(Title Slide/Title and Content/Section Header)はいずれも
+    タイトル等のコンテンツ用プレースホルダーを持つため、「完全に空」なレイアウトが
+    存在しない状態を再現できる(index 6 固定参照なら即 IndexError になっていたケース)。
+    """
+    from pptx.oxml.ns import qn as _qn
+
+    tpl = Presentation()
+    master = tpl.slide_masters[0]
+    lst = master.element.find(_qn("p:sldLayoutIdLst"))
+    ids = list(lst)
+    assert len(ids) > keep, "既定テンプレートの前提が変わっている"
+    for el in ids[keep:]:
+        lst.remove(el)
+    tpath = tmp_path / name
+    tpl.save(str(tpath))
+    # 保存後に読み込み直し、レイアウト数が意図どおり減っていることを確認する。
+    reloaded = Presentation(str(tpath))
+    assert len(reloaded.slide_layouts) == keep
+    return str(tpath)
+
+
+def test_template_with_few_layouts_no_crash(tmp_path):
+    """レイアウトが7個未満(index 6 が無い)ブランドテンプレートでもクラッシュしない。"""
+    tpath = _reduced_layout_template(tmp_path, keep=3)
+    content = jp_slides.parse_content(_full_content(theme="藍", template=tpath))
+    out = jp_slides.render_deck(content, out=str(tmp_path / "o.pptx"))
+    prs = Presentation(out)
+    assert len(prs.slides) == 6
+    text = _all_text(prs)
+    assert "月次営業報告" in text
+
+
+def test_blank_layout_prefers_layout_without_content_placeholders():
+    """_blank_layout はコンテンツ用プレースホルダーを持たないレイアウトを優先する。"""
+    import jp_slides_design as D
+
+    prs = Presentation()
+    lo = D._blank_layout(prs)
+    assert lo.name == "Blank"
+
+
+# ---- message.body の型検証(文字列は1件coercing、他はValueError) ----
+
+def test_message_body_string_coerced_to_single_bullet(tmp_path):
+    content = jp_slides.parse_content({
+        "theme": "藍",
+        "slides": [{"type": "message", "headline": "h", "body": "一文の要点"}],
+    })
+    out = jp_slides.render_deck(content, out=str(tmp_path / "o.pptx"))
+    prs = Presentation(out)
+    text = _all_text(prs)
+    assert "一文の要点" in text
+    # 文字別に分解されていれば "一" だけの textbox が複数できるはずだが、
+    # ここでは全文が1つのテキストとして含まれていることのみを確認する。
+    bullets = [sh.text_frame.text for sh in prs.slides[0].shapes
+               if sh.has_text_frame and sh.text_frame.text == "一文の要点"]
+    assert len(bullets) == 1
+
+
+def test_message_body_invalid_type_raises_japanese_error():
+    with pytest.raises(ValueError, match="body"):
+        jp_slides.parse_content({
+            "theme": "藍",
+            "slides": [{"type": "message", "headline": "h", "body": 123}],
+        })
+
+
+def test_table_columns_string_raises_japanese_error():
+    with pytest.raises(ValueError, match="columns"):
+        jp_slides.parse_content({
+            "theme": "藍",
+            "slides": [{"type": "table", "headline": "h", "columns": "評価軸", "rows": []}],
+        })
+
+
+def test_table_rows_string_raises_japanese_error():
+    with pytest.raises(ValueError, match="rows"):
+        jp_slides.parse_content({
+            "theme": "藍",
+            "slides": [{"type": "table", "headline": "h", "columns": ["a"], "rows": "abc"}],
+        })
+
+
+def test_table_row_item_string_raises_japanese_error():
+    with pytest.raises(ValueError):
+        jp_slides.parse_content({
+            "theme": "藍",
+            "slides": [{"type": "table", "headline": "h", "columns": ["a"], "rows": ["abc"]}],
+        })
+
+
+def test_table_row_none_allowed(tmp_path):
+    """rows の要素として None は許容され、空行として安全に描画される。"""
+    content = jp_slides.parse_content({
+        "theme": "藍",
+        "slides": [{"type": "table", "headline": "h", "columns": ["a", "b"], "rows": [None, ["x", "y"]]}],
+    })
+    out = jp_slides.render_deck(content, out=str(tmp_path / "o.pptx"))
+    prs = Presentation(out)
+    tbls = [sh for sh in prs.slides[0].shapes if sh.has_table]
+    assert tbls
+    t = tbls[0].table
+    assert t.cell(1, 0).text == ""
+    assert t.cell(2, 0).text == "x"
+
+
+# ---- submitted_to(提出先)の cover 描画 ----
+
+def test_cover_submitted_to_rendered(tmp_path):
+    content = jp_slides.parse_content({
+        "theme": "藍",
+        "slides": [{"type": "cover", "title": "月次営業報告", "submitted_to": "◯◯部長"}],
+    })
+    out = jp_slides.render_deck(content, out=str(tmp_path / "o.pptx"))
+    prs = Presentation(out)
+    text = _all_text(prs)
+    assert "提出先" in text
+    assert "◯◯部長" in text
+
+
+def test_cover_without_submitted_to_omits_label(tmp_path):
+    content = jp_slides.parse_content({
+        "theme": "藍",
+        "slides": [{"type": "cover", "title": "月次営業報告"}],
+    })
+    out = jp_slides.render_deck(content, out=str(tmp_path / "o.pptx"))
+    prs = Presentation(out)
+    text = _all_text(prs)
+    assert "提出先" not in text

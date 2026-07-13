@@ -129,6 +129,25 @@ def parse_content(obj: dict) -> dict:
                     raise ValueError(f"slides[{i}].items[{j}] はオブジェクト(dict)である必要があります。")
                 if "value" not in it or "label" not in it:
                     raise ValueError(f"slides[{i}].items[{j}] には value と label が必要です。")
+        elif s["type"] == "message":
+            body = s.get("body")
+            if body is not None:
+                if isinstance(body, str):
+                    # 単一項目の便宜coercing(文字列を1文字ずつ箇条書きに分解する事故を防ぐ)。
+                    s["body"] = [body]
+                elif not isinstance(body, list):
+                    raise ValueError(f"slides[{i}]: message の body はリストである必要があります(文字列は単一項目として許容)。")
+        elif s["type"] == "table":
+            columns = s.get("columns")
+            if columns is not None and not isinstance(columns, list):
+                raise ValueError(f"slides[{i}]: table の columns はリストである必要があります。")
+            rows = s.get("rows")
+            if rows is not None:
+                if not isinstance(rows, list):
+                    raise ValueError(f"slides[{i}]: table の rows はリストである必要があります。")
+                for j, row in enumerate(rows):
+                    if row is not None and not isinstance(row, list):
+                        raise ValueError(f"slides[{i}].rows[{j}] はリスト(または null)である必要があります。")
     return {
         "meta": obj.get("meta", {}),
         "theme": theme,

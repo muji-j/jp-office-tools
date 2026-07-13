@@ -39,8 +39,42 @@ def new_prs():
     return p
 
 
+# コンテンツ用プレースホルダー(タイトル・本文等)の種別。これらを持たないレイアウトを
+# 「空(blank)」とみなす。日付/フッター/ページ番号はほぼ全レイアウトに付くメタ用
+# プレースホルダーのため、コンテンツ判定からは除外する。
+_META_PLACEHOLDER_TYPES = {"DATE", "FOOTER", "SLIDE_NUMBER", "HEADER"}
+
+
+def _blank_layout(prs):
+    """安全な「空」レイアウトを1つ選ぶ。
+
+    自前デッキ(new_prs())では既定テンプレートの index 6(Blank)を返すため従来と
+    挙動は変わらない。一方でブランドテンプレート(--template)はレイアウトを
+    7個未満しか持たないことがあり、固定 index 6 参照は IndexError でクラッシュ
+    していた(SP3 deep-review 指摘)。ここではプレースホルダー構成から「空」相当の
+    レイアウトを探し、無ければ index 6、それも無ければ最後のレイアウトにフォールバック
+    する(python-pptx の仕様上レイアウト0件にはならない)。
+    """
+    layouts = list(prs.slide_layouts)
+    if not layouts:
+        raise RuntimeError("テンプレートにスライドレイアウトがありません。")
+    for lo in layouts:
+        has_content_ph = False
+        for ph in lo.placeholders:
+            ptype = ph.placeholder_format.type
+            name = ptype.name if ptype is not None else None
+            if name not in _META_PLACEHOLDER_TYPES:
+                has_content_ph = True
+                break
+        if not has_content_ph:
+            return lo
+    if len(layouts) > 6:
+        return layouts[6]
+    return layouts[-1]
+
+
 def slide(prs, bg):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
+    s = prs.slides.add_slide(_blank_layout(prs))
     s.background.fill.solid()
     s.background.fill.fore_color.rgb = rgb(bg)
     return s
@@ -49,7 +83,7 @@ def slide(prs, bg):
 def _new_slide(prs, prof, *, template_mode=False):
     """render_* 内部用スライド生成。template_mode ではマスターを継承し塗り潰さない。"""
     if template_mode:
-        return prs.slides.add_slide(prs.slide_layouts[6])
+        return prs.slides.add_slide(_blank_layout(prs))
     return slide(prs, prof["bg"])
 
 
@@ -528,7 +562,7 @@ _HERO_STAT_BLOCKED_BGSIGS = {"diagonal", "lines", "circle", "colorblock", "band"
 def render_cover(prs, prof, meta, *, template_mode=False):
     """cover スライドを1枚描画して返す。
 
-    meta: title(必須) / subtitle / date / author / kicker / audience / stat を利用する。
+    meta: title(必須) / subtitle / date / author / submitted_to / kicker / audience / stat を利用する。
     template_mode=True の場合はマスターを継承し、シグネチャ背景を描画しない。
     """
     meta = meta or {}
@@ -553,6 +587,12 @@ def render_cover(prs, prof, meta, *, template_mode=False):
     if bits:
         text(s, layout["x"], y, layout["w"], 0.4,
              [[R("　".join(bits), prof["body_font"], 13, prof["muted"])]], align=align)
+        y += 0.42
+    submitted_to = meta.get("submitted_to")
+    if submitted_to:
+        text(s, layout["x"], y, layout["w"], 0.4,
+             [[R(f"提出先: {submitted_to}", prof["body_font"], 13, prof["muted"])]], align=align)
+        y += 0.42
     stat = meta.get("stat")
     if stat and prof.get("bgsig") not in _HERO_STAT_BLOCKED_BGSIGS:
         _hero_stat(s, prof, 8.75, 2.15, 3.7, 3.15, stat)
@@ -864,6 +904,7 @@ def render_table(prs, prof, headline, columns, rows, *, template_mode=False):
         _cell_text(cell, name, prof["body_font"], 13, bold=True, color=on_accent)
     base_fill = prof.get("card") or prof["bg"]
     for r, row in enumerate(rows, start=1):
+        row = row or []
         zebra_row = r % 2 == 0
         for c in range(ncols):
             val = row[c] if c < len(row) else ""
