@@ -5,9 +5,10 @@ import re
 import sys
 import unicodedata
 from collections import Counter
-from pathlib import Path
 
-_TOKEN = re.compile(r"[ァ-ヶ][ァ-ヶー]*|[Ａ-Ｚａ-ｚA-Za-z0-9０-９]+|[一-龠々][一-龠々ぁ-ん]*")
+from jp_office_common import read_text_auto
+
+_TOKEN = re.compile(r"[ァ-ヶ][ァ-ヶー]*|[Ａ-Ｚａ-ｚA-Za-z0-9０-９]+|[一-龠々][一-龠々ぁ-ん]{0,11}")
 
 
 def _norm_key(s: str) -> str:
@@ -45,25 +46,14 @@ def term_candidates(text: str) -> list[dict]:
 def _read_input(arg: str) -> str:
     if arg == "-":
         return sys.stdin.read()
-    return Path(arg).read_text(encoding=_detect(arg))
-
-
-def _detect(path: str) -> str:
-    raw = Path(path).read_bytes()
-    if raw.startswith(b"\xef\xbb\xbf"):
-        return "utf-8-sig"
-    for enc in ("utf-8", "cp932"):
-        try:
-            raw.decode(enc)
-            return enc
-        except UnicodeDecodeError:
-            continue
-    return "cp932"
+    return read_text_auto(arg)
 
 
 def main(argv: list[str]) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stdin, "reconfigure"):
+        sys.stdin.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(prog="jp_glossary.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("variants", "terms"):
