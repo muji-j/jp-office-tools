@@ -13,7 +13,8 @@
 
 ## Codex Agent Routing
 
-- `.codex/agents/*.toml` は JP シリーズ共通の Codex エージェント群であり、`common`、`jp-power-tools` とバイト単位で同一に保つ。Claude エージェントとプラグインファイルは別資産として扱う。
+- `.codex/agents/*.toml` は JP シリーズ共通の Codex エージェント群であり、`common`、`jp-power-tools` とバイト単位で同一に保つ。
+- Out of scope: .claude/ (agents, settings, hooks, plugins) - never create, modify, or delete files there.
 - 探索=`scout`、設計=`plan-architect`、Python=`script-engineer`、文書=`content-author`、HTML/ギャラリー=`dashboard-engineer`。
 - Office レンダリング=`office-artifact-auditor`、機微情報=`sensitivity-auditor`、仕様=`spec-reviewer`、テスト=`test-runner`、最終監査=`deep-reviewer`、出荷=`release-engineer`。電力事実確認エージェントは電力関連作業にだけ使用する。
 - root を含めて最大 4 threads、depth 1。実装担当と read-only reviewer を分離する。

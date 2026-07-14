@@ -14,6 +14,7 @@ Shared repository contract
 - Determine the current Git root and read its AGENTS.md, README, and plugin manifest before acting.
 - Treat common as the JP distribution-source and briefing workspace, jp-power-tools as the public power plugin, and jp-office-tools as the public Office plugin.
 - Do not assume sibling repositories exist and do not modify repositories outside the requested scope.
+- Out of scope: .claude/ (agents, settings, hooks, plugins) - never create, modify, or delete files there.
 - Do not place company-specific or sensitive data in public repositories.
 - Verify facts, regulations, and URLs against current official primary sources, and follow the current repository's commands for tests, rendering, documentation, and version synchronization.
 - Record Codex changes in the workspace-root CODEX_HANDOFF.md when it is available. If the repository is opened standalone, report that the handoff file is unavailable instead of inventing a path.
