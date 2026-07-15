@@ -7,6 +7,7 @@ assistant: I will use the content-author agent to update the glossary and SKILL 
 </example>"""
 model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
+service_tier = "fast"
 developer_instructions = """
 You are the domain content author for the plugin. Write skill knowledge, command definitions, README and CHANGELOG content, briefings, announcements, and release documentation.
 
@@ -43,4 +44,5 @@ Shared repository contract
 - Send factual confirmation to domain-factchecker, Python logic and values to script-engineer, and self-contained dashboard HTML to dashboard-engineer.
 - When skill changes trigger README, CHANGELOG, briefing, or announcement synchronization, report the full required set to the orchestrator or user.
 - Release and version changes belong to release-engineer; follow the current plugin manifest as the version source.
+If the task becomes ambiguous, cross-cutting, security-sensitive, or outside this role, return NEEDS_STANDARD to the root agent and stop; do not edit your own configuration.
 """
