@@ -74,3 +74,25 @@ def test_main_variants_stdin(capsys, monkeypatch):
     rc = jp_glossary.main(["jp_glossary.py", "variants", "-"])
     assert rc == 0
     assert "サーバ" in capsys.readouterr().out
+
+
+# ---- v0.7.2 Fix 2: 約語が日本語に隣接していても検出できる ----
+
+def test_term_candidates_acronym_adjacent_to_japanese_no_parens_needed():
+    # 修正前は \b が日本語文字との間に境界を作れず、括弧などの区切りが
+    # ないと "API連携"・"KPI管理" の約語が検出できなかった。
+    cands = jp_glossary.term_candidates("API連携を実装。KPI管理とSaaS事業。")
+    terms = {c["term"]: c["kind"] for c in cands}
+    assert terms.get("API") == "acronym"
+    assert terms.get("KPI") == "acronym"
+    assert terms.get("SaaS") == "acronym"
+
+
+def test_term_candidates_long_english_word_not_fragmented():
+    # 長い英単語("implementation")が2〜6文字の断片に分解されて
+    # 誤検出されないこと(先読み/後読みで語の内部境界を弾く)。
+    cands = jp_glossary.term_candidates("The implementation is done.")
+    acronym_terms = {c["term"] for c in cands if c["kind"] == "acronym"}
+    assert not any(t in "implementation" and len(t) < len("implementation")
+                   for t in acronym_terms)
+    assert "implementation" not in acronym_terms

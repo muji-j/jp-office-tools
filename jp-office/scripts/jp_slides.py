@@ -131,6 +131,10 @@ def parse_content(obj: dict) -> dict:
                     raise ValueError(f"slides[{i}].items[{j}] はオブジェクト(dict)である必要があります。")
                 if "value" not in it or "label" not in it:
                     raise ValueError(f"slides[{i}].items[{j}] には value と label が必要です。")
+        elif s["type"] == "cover":
+            stat = s.get("stat")
+            if stat is not None and (not isinstance(stat, dict) or "value" not in stat):
+                raise ValueError(f"slides[{i}]: cover の stat はオブジェクト(dict)で value キーが必要です。")
         elif s["type"] == "message":
             body = s.get("body")
             if body is not None:

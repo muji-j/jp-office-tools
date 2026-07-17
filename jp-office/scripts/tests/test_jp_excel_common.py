@@ -100,6 +100,42 @@ def test_list_sheets_rejects_xls_binary(tmp_path):
         jp_excel.list_sheets(f)
 
 
+# ---- .tsv / タブ区切り .txt の区切り文字自動判定(v0.7.2 Fix 1) ----
+
+def test_tsv_tab_delimited_parses_multiple_columns(tmp_path):
+    """タブ区切り .tsv が sep=',' で1列に潰れず、列数どおりに読める。"""
+    f = tmp_path / "d.tsv"
+    f.write_text("col1\tcol2\tcol3\na\tb\tc\n", encoding="utf-8")
+    cols = jp_excel.column_summary(f)
+    assert [c["name"] for c in cols] == ["col1", "col2", "col3"]
+
+
+def test_txt_tab_delimited_sniffed_as_multiple_columns(tmp_path):
+    """タブ区切り .txt は sep=None(python engine)でスニッフィングされ多列を維持する。"""
+    f = tmp_path / "d.txt"
+    f.write_text("col1\tcol2\tcol3\na\tb\tc\n", encoding="utf-8")
+    cols = jp_excel.column_summary(f)
+    assert [c["name"] for c in cols] == ["col1", "col2", "col3"]
+
+
+def test_csv_comma_delimited_regression_unchanged(tmp_path):
+    """回帰: カンマ区切り .csv の挙動は変わらない。"""
+    f = tmp_path / "d.csv"
+    f.write_text("col1,col2,col3\na,b,c\n", encoding="utf-8")
+    cols = jp_excel.column_summary(f)
+    assert [c["name"] for c in cols] == ["col1", "col2", "col3"]
+
+
+def test_clean_file_tsv_output_keeps_multiple_columns(tmp_path):
+    """タブ区切り .tsv を clean_file しても出力が1列に潰れず多列のまま。"""
+    f = tmp_path / "d.tsv"
+    f.write_text("col1\tcol2\tcol3\na\tb\tc\n", encoding="utf-8")
+    report = jp_excel.clean_file(f)
+    df = pd.read_csv(report.dst, dtype=str)
+    assert list(df.columns) == ["col1", "col2", "col3"]
+    assert df.loc[0, "col2"] == "b"
+
+
 def test_make_chart_matplotlib_missing_raises_jp_office_error(tmp_path, monkeypatch):
     """SP5 Fix 3: matplotlib 未インストール時は生の ImportError ではなく
     JpOfficeError(親切な日本語メッセージ)に変換される。"""

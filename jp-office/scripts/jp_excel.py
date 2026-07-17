@@ -112,6 +112,19 @@ def _safe_sheet_name(name: str) -> str:
     return out
 
 
+def _csv_read_kwargs(path: Path) -> dict:
+    """拡張子に応じた read_csv の区切り文字引数。
+    .tsv はタブ区切り固定、.txt は pandas のスニッフィング(タブ/カンマ自動判別)、
+    .csv は従来通り既定(カンマ、性能を維持)。
+    """
+    suffix = Path(path).suffix.lower()
+    if suffix == ".tsv":
+        return {"sep": "\t"}
+    if suffix == ".txt":
+        return {"sep": None, "engine": "python"}
+    return {}
+
+
 def _read(path: Path, sheet: str | None = None) -> tuple[pd.DataFrame, str, str]:
     path = Path(path)
     _check_supported_format(path)
@@ -132,7 +145,8 @@ def _read(path: Path, sheet: str | None = None) -> tuple[pd.DataFrame, str, str]
             )
         return df, enc, note
     enc, _ = detect_encoding(path)
-    return pd.read_csv(path, dtype=str, encoding=enc, encoding_errors="replace"), enc, ""
+    return pd.read_csv(path, dtype=str, encoding=enc, encoding_errors="replace",
+                       **_csv_read_kwargs(path)), enc, ""
 
 
 _NUM_RE = re.compile(r"^-?[\d,]+(\.\d+)?$")

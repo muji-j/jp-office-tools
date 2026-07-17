@@ -30,7 +30,9 @@ def scan_variants(text: str) -> list[dict]:
 
 def term_candidates(text: str) -> list[dict]:
     kata = Counter(re.findall(r"[ァ-ヶ][ァ-ヶー]{2,}", text))
-    acro = Counter(re.findall(r"\b[A-Za-z]{2,6}\b", text))
+    # \b は日本語文字との間に境界を作らない(API連携 の "I" と "連" の間に \b が立たない)ため、
+    # 英字の直前直後が英字でないことを明示するルックアラウンドで代替する。
+    acro = Counter(re.findall(r"(?<![A-Za-z])[A-Za-z]{2,6}(?![A-Za-z])", text))
     kanji = Counter(re.findall(r"[一-龠々]{2,4}", text))
     out = []
     for term, n in kata.items():

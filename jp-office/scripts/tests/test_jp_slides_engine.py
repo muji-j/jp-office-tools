@@ -376,3 +376,24 @@ def test_cover_without_submitted_to_omits_label(tmp_path):
     prs = Presentation(out)
     text = _all_text(prs)
     assert "提出先" not in text
+
+
+# ---- v0.7.2 Fix 3: cover.stat の型検証(dict + value 必須) ----
+
+def test_cover_stat_valid_dict_passes(tmp_path):
+    content = jp_slides.parse_content({
+        "theme": "藍",
+        "slides": [{"type": "cover", "title": "月次営業報告",
+                    "stat": {"label": "売上", "value": "303億"}}],
+    })
+    out = jp_slides.render_deck(content, out=str(tmp_path / "o.pptx"))
+    prs = Presentation(out)
+    assert "303億" in _all_text(prs)
+
+
+def test_cover_stat_non_dict_string_raises_japanese_error():
+    with pytest.raises(ValueError, match="stat"):
+        jp_slides.parse_content({
+            "theme": "藍",
+            "slides": [{"type": "cover", "title": "月次営業報告", "stat": "303億"}],
+        })
