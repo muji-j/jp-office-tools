@@ -1,6 +1,6 @@
 {
   "name": "jp-office",
   "description": "Japanese office toolkit — Excel/CSV workbench (encoding/normalization/diff/pivot/chart), Japanese business documents (議事録/稟議書/メール敬語添削/スライド構成/翻訳/PDF表抽出/表記ゆれ検出・用語集), business email drafting/reply/scheduling (jp-mail), presentation slide generation (jp-slides: 16 modern-theme .pptx visual engine with stats/KPI slides, brand templates), date utilities (祝日/営業日/和暦), plus /xl-clean /xl-diff /xl-pivot /xl-chart /giji /ringi /mail /keigo /slides /pdf-table /glossary /jp-office-setup commands. General-purpose, no company-specific content.",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "author": { "name": "muji" }
 }

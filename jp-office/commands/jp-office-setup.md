@@ -3,7 +3,7 @@ description: jp-office のスクリプト実行環境(Python・ライブラリ)�
 argument-hint: "(なし)"
 ---
 
-`jp-office` のスクリプト(Excel クレンジング/diff・PDF 抽出・日付計算)を動かす環境を点検し、
+`jp-office` のスクリプト(Excel クレンジング/diff・PDF 抽出・スライド生成・日付計算)を動かす環境を点検し、
 不足があればユーザーに確認してから導入する。
 
 ## 手順
@@ -18,6 +18,7 @@ argument-hint: "(なし)"
 `python -c "import <mod>"` の成否で判定:
 - **Excel/CSV 系**: `pandas`, `openpyxl`, `matplotlib`(グラフ生成)
 - **PDF 系**: `pdfplumber`(テキスト抽出)、`pypdfium2`・`PIL`(スキャンPDFの画像レンダー)
+- **スライド系**: `python-pptx`(.pptx 生成、jp-slides)
 - **日付系**: `jpholiday`
 
 ### 3. 不足があれば確認して導入
@@ -32,4 +33,5 @@ argument-hint: "(なし)"
 
 ### 4. 動作確認
 - `python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_dates.py" holiday 2026-01-01` が `元日` を返すか。
+- (任意)`python "${CLAUDE_PLUGIN_ROOT}/scripts/jp_slides.py" themes` がテーマ一覧を返すか(jp-slides 用)。
 - Python が無い/導入しない場合も、文書系スキル(jp-bizdoc)は全機能動作する旨を伝える。

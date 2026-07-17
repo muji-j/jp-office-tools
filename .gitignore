@@ -11,6 +11,9 @@ venv/
 Thumbs.db
 .superpowers/
 
+# 管理用ワークフロー設定(プラグイン利用者には不要)
+.codex/
+
 # Test scratch
 .coverage
 probe_tmp/

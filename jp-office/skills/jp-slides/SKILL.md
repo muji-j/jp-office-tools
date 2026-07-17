@@ -45,7 +45,7 @@ description: 実際の .pptx ファイル(スライド資料)を生成する際�
 - `theme`: 内蔵テーマ名(下記16種、それぞれ固有のモダンデザイン原型)。既定は「藍」。
 - `template`: 既存の会社ブランド `.pptx`(社内テンプレート)を土台にする場合のパス。指定時は背景色・装飾の自動描画を行わず、テンプレートのレイアウト・配色をそのまま活かす。
 - `accent`/`font`/`variant`: テーマの部分上書き(下記「カスタマイズ」参照)。
-- `slides[].type`: `cover`(title/subtitle/date/author/submitted_to/audience/stat{value,label}) / `message`(headline/body[]) / `stats`(headline/items[]。items は `value`(必須)/`label`(必須)/`note`(任意)を持つオブジェクトの配列。KPI・指標を数字で見せたい場合に使う) / `table`(headline/columns[]/rows[][]) / `image`(headline/image/caption) / `section`(title)。stats の詳細・レイアウト(テーマごとの並べ方)は [references/themes.md](references/themes.md) を参照。
+- `slides[].type`: `cover`(title/subtitle/date/author/submitted_to/audience/stat{value,label}) / `message`(headline/body[]) / `stats`(headline/items[]。items は `value`(必須)/`label`(必須)/`note`(任意)を持つオブジェクトの配列。KPI・指標を数字で見せたい場合に使う) / `table`(headline/columns[]/rows[][]) / `image`(headline/image/caption) / `section`(title/number。number は「02」のような中扉の章番号、任意)。stats の詳細・レイアウト(テーマごとの並べ方)は [references/themes.md](references/themes.md) を参照。
 
 ## 使い方
 
