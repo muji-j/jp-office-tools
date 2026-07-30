@@ -17,3 +17,4 @@ Thumbs.db
 # Test scratch
 .coverage
 probe_tmp/
+AGENTS.md
